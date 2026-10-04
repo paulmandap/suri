@@ -1,4 +1,4 @@
-import type { IslandSnapshot } from './types'
+import type { ApprovalDecision, IslandSnapshot } from './types'
 
 /** Every IPC channel between the main process and the island renderer. */
 export const IPC = {
@@ -11,7 +11,9 @@ export const IPC = {
   /** renderer → main: the pointer entered (true) or left (false) the island. */
   setInteractive: 'suri:set-interactive',
   /** renderer → main (invoke): open a session's folder in VS Code. Resolves to success. */
-  openSession: 'suri:open-session'
+  openSession: 'suri:open-session',
+  /** renderer → main (invoke): answer a held PermissionRequest. Resolves to success. */
+  decideApproval: 'suri:decide-approval'
 } as const
 
 /** The only API the renderer gets (`window.suri`), exposed by the preload. */
@@ -21,4 +23,5 @@ export interface SuriApi {
   rendererReady(): void
   setInteractive(interactive: boolean): void
   openSession(sessionId: string): Promise<boolean>
+  decideApproval(approvalId: string, decision: ApprovalDecision): Promise<boolean>
 }

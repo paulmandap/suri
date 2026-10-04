@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { CARD_TTL_MS, cardKey, deriveIslandView, type IslandUiState } from '@shared/island-mode'
-import type { IslandSnapshot, Session } from '@shared/types'
+import {
+  CARD_TTL_MS,
+  cardKey,
+  deriveIslandView,
+  islandCardKey,
+  type IslandUiState
+} from '@shared/island-mode'
+import type { IslandSnapshot, PendingApproval, Session } from '@shared/types'
 
 const NOW = 100_000
 
@@ -23,6 +29,7 @@ function session(overrides: Partial<Session> = {}): Session {
 function snapshot(sessions: Session[], extra: Partial<IslandSnapshot> = {}): IslandSnapshot {
   return {
     sessions,
+    approvals: [],
     paused: false,
     hookServer: { state: 'listening', port: 47821 },
     sentAt: NOW,
@@ -107,5 +114,48 @@ describe('deriveIslandView', () => {
       hookServer: { state: 'error', port: 47821, message: 'Port 47821 is already in use.' }
     })
     expect(deriveIslandView(broken, UI, NOW).mode).toBe('peek')
+  })
+})
+
+describe('held approvals', () => {
+  const approval = (id: string, sessionId = 's1'): PendingApproval => ({
+    id,
+    sessionId,
+    project: 'demo',
+    tool: 'Bash',
+    verb: 'Running',
+    detail: 'npm publish',
+    createdAt: NOW - 1_000,
+    expiresAt: NOW + 100_000
+  })
+
+  it('shows the oldest held approval above everything, with the queue count', () => {
+    const waiting = session({
+      status: 'waiting',
+      pendingPermission: { tool: 'Bash', target: 'npm publish', at: NOW - 500 }
+    })
+    const view = deriveIslandView(
+      snapshot([waiting], { approvals: [approval('a1'), approval('a2')] }),
+      ui({ pinnedOpen: true }),
+      NOW
+    )
+    expect(view.mode).toBe('card')
+    expect(view.card).toMatchObject({ kind: 'approval', approval: { id: 'a1' }, queued: 1 })
+    expect(view.focus).toBe(waiting)
+  })
+
+  it('shows the short feedback first, right after a click', () => {
+    const view = deriveIslandView(
+      snapshot([session()], { approvals: [approval('a2')] }),
+      ui({ feedback: { id: 'a1', decision: 'allow', project: 'demo' } }),
+      NOW
+    )
+    expect(view.card).toMatchObject({ kind: 'feedback', feedback: { decision: 'allow' } })
+  })
+
+  it('gives every card a stable key', () => {
+    expect(islandCardKey({ kind: 'approval', approval: approval('a9'), queued: 0 })).toBe(
+      'approval:a9'
+    )
   })
 })

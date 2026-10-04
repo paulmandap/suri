@@ -1,6 +1,9 @@
 import { create } from 'zustand'
-import type { IslandUiState } from '@shared/island-mode'
+import type { DecisionFeedback, IslandUiState } from '@shared/island-mode'
 import type { IslandSnapshot } from '@shared/types'
+
+/** How long "Allowed / Denied" shows before the island moves on. */
+const FEEDBACK_MS = 900
 
 interface IslandStore {
   snapshot: IslandSnapshot | null
@@ -9,7 +12,10 @@ interface IslandStore {
   setHovering: (hovering: boolean) => void
   setPinnedOpen: (pinnedOpen: boolean) => void
   dismiss: (cardKey: string) => void
+  showFeedback: (feedback: DecisionFeedback) => void
 }
+
+let feedbackTimer: ReturnType<typeof setTimeout> | undefined
 
 export const useIsland = create<IslandStore>((set) => ({
   snapshot: null,
@@ -20,5 +26,16 @@ export const useIsland = create<IslandStore>((set) => ({
   setPinnedOpen: (pinnedOpen) =>
     set((s) => (s.ui.pinnedOpen === pinnedOpen ? s : { ui: { ...s.ui, pinnedOpen } })),
   dismiss: (cardKey) =>
-    set((s) => ({ ui: { ...s.ui, dismissed: { ...s.ui.dismissed, [cardKey]: true } } }))
+    set((s) => ({ ui: { ...s.ui, dismissed: { ...s.ui.dismissed, [cardKey]: true } } })),
+  showFeedback: (feedback) => {
+    clearTimeout(feedbackTimer)
+    set((s) => ({ ui: { ...s.ui, feedback } }))
+    feedbackTimer = setTimeout(
+      () =>
+        set((s) =>
+          s.ui.feedback?.id === feedback.id ? { ui: { ...s.ui, feedback: undefined } } : s
+        ),
+      FEEDBACK_MS
+    )
+  }
 }))

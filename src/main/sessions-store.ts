@@ -1,9 +1,16 @@
 import type { HookEvent } from '@shared/hook-events'
-import { createSessionsState, pruneSessions, reduceSessions, sortSessions } from '@shared/sessions'
+import {
+  createSessionsState,
+  markPermissionAnswered,
+  pruneSessions,
+  reduceSessions,
+  sortSessions
+} from '@shared/sessions'
 import type { Session } from '@shared/types'
 
 export interface SessionsStore {
   apply(event: HookEvent): void
+  answerPermission(sessionId: string, decision: 'allow' | 'deny'): void
   prune(maxIdleMs?: number): void
   list(): Session[]
   get(id: string): Session | undefined
@@ -21,6 +28,8 @@ export function createSessionsStore(clock: () => number = Date.now): SessionsSto
   }
   return {
     apply: (event) => commit(reduceSessions(state, event, clock())),
+    answerPermission: (sessionId, decision) =>
+      commit(markPermissionAnswered(state, sessionId, decision, clock())),
     prune: (maxIdleMs) => commit(pruneSessions(state, clock(), maxIdleMs)),
     list: () => sortSessions(state),
     get: (id) => state.sessions[id],

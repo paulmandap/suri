@@ -55,3 +55,12 @@ describe('loadSettings', () => {
     expect(readdirSync(dir)).toEqual(['settings.json'])
   })
 })
+
+describe('safety net setting', () => {
+  it('is on by default and can be switched off', () => {
+    const settings = loadSettings(dir)
+    expect(settings.safetyNet).toBe(true)
+    expect(updateSettings(dir, settings, { safetyNet: false }).safetyNet).toBe(false)
+    expect(loadSettings(dir).safetyNet).toBe(false)
+  })
+})

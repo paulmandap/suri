@@ -68,3 +68,27 @@ export function moodFor(status: SessionStatus | undefined): Mood {
       return 'sleepy'
   }
 }
+
+const WANTS_TO: Record<string, string> = {
+  Running: 'run',
+  Editing: 'edit',
+  Writing: 'write',
+  Reading: 'read',
+  Fetching: 'fetch',
+  Searching: 'search',
+  Finding: 'search',
+  'Searching the web': 'search the web',
+  Delegating: 'start a subagent',
+  Planning: 'update its plan'
+}
+
+/** "Running" becomes "run", for "demo wants to run ...". */
+export function wantsTo(verb: string, tool: string): string {
+  return WANTS_TO[verb] ?? `use ${tool}`
+}
+
+/** Time left before Claude Code asks for itself, as m:ss. */
+export function formatCountdown(ms: number): string {
+  const seconds = Math.max(0, Math.ceil(ms / 1000))
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
+}

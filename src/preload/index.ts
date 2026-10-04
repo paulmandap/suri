@@ -23,7 +23,9 @@ const api: SuriApi = {
   },
   rendererReady: () => ipcRenderer.send(IPC.rendererReady),
   setInteractive: (interactive) => ipcRenderer.send(IPC.setInteractive, interactive === true),
-  openSession: (sessionId) => ipcRenderer.invoke(IPC.openSession, String(sessionId))
+  openSession: (sessionId) => ipcRenderer.invoke(IPC.openSession, String(sessionId)),
+  decideApproval: (approvalId, decision) =>
+    ipcRenderer.invoke(IPC.decideApproval, String(approvalId), String(decision))
 }
 
 contextBridge.exposeInMainWorld('suri', api)

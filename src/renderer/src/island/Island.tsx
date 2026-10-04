@@ -1,9 +1,10 @@
 import { AnimatePresence, motion, useReducedMotion, type Transition } from 'motion/react'
 import { useCallback, useEffect, useRef } from 'react'
-import { cardKey, deriveIslandView, type IslandView } from '@shared/island-mode'
-import type { IslandSnapshot } from '@shared/types'
+import { cardKey, deriveIslandView, islandCardKey, type IslandView } from '@shared/island-mode'
+import type { ApprovalDecision, IslandSnapshot, PendingApproval } from '@shared/types'
 import { useNow } from '../lib/useNow'
 import { useIsland } from '../store'
+import { ApprovalCard, FeedbackCard } from '../views/ApprovalCard'
 import { CompactView } from '../views/CompactView'
 import { ErrorCard, FinishedCard, WaitingCard } from '../views/Cards'
 import { ExpandedView } from '../views/ExpandedView'
@@ -26,10 +27,12 @@ export function Island(): React.JSX.Element {
   const setHovering = useIsland((s) => s.setHovering)
   const setPinnedOpen = useIsland((s) => s.setPinnedOpen)
   const dismiss = useIsland((s) => s.dismiss)
+  const showFeedback = useIsland((s) => s.showFeedback)
   const reduce = useReducedMotion() ?? false
 
   const sessionCount = snapshot?.sessions.length ?? 0
-  const now = useNow(sessionCount > 0 || ui.hovering || ui.pinnedOpen)
+  const busy = sessionCount > 0 || (snapshot?.approvals.length ?? 0) > 0
+  const now = useNow(busy || ui.hovering || ui.pinnedOpen)
   const view = deriveIslandView(snapshot, ui, now)
   const shape = islandShape(view, sessionCount)
   const ref = useRef<HTMLDivElement>(null)
@@ -77,6 +80,16 @@ export function Island(): React.JSX.Element {
     void window.suri.openSession(sessionId)
   }, [])
 
+  const decide = useCallback(
+    (approval: PendingApproval, decision: ApprovalDecision) => {
+      void window.suri.decideApproval(approval.id, decision)
+      if (decision !== 'ask') {
+        showFeedback({ id: approval.id, decision, project: approval.project })
+      }
+    },
+    [showFeedback]
+  )
+
   const onShapeClick = (): void => {
     if (view.mode === 'peek' || view.mode === 'compact') setPinnedOpen(true)
   }
@@ -102,7 +115,7 @@ export function Island(): React.JSX.Element {
       >
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
-            key={contentKey(view)}
+            key={view.card ? islandCardKey(view.card) : view.mode}
             className="absolute inset-0"
             initial={{ opacity: 0, scale: 0.96, filter: 'blur(6px)' }}
             animate={{
@@ -119,6 +132,7 @@ export function Island(): React.JSX.Element {
               now={now}
               onOpen={openSession}
               onDismiss={dismiss}
+              onDecide={decide}
             />
           </motion.div>
         </AnimatePresence>
@@ -127,23 +141,20 @@ export function Island(): React.JSX.Element {
   )
 }
 
-/** Content only re-animates when the island changes mode, not on every event. */
-function contentKey(view: IslandView): string {
-  return view.card ? cardKey(view.card.kind, view.card.session) : view.mode
-}
-
 function IslandContent({
   view,
   snapshot,
   now,
   onOpen,
-  onDismiss
+  onDismiss,
+  onDecide
 }: {
   view: IslandView
   snapshot: IslandSnapshot | null
   now: number
   onOpen: (sessionId: string) => void
   onDismiss: (cardKey: string) => void
+  onDecide: (approval: PendingApproval, decision: ApprovalDecision) => void
 }): React.JSX.Element | null {
   switch (view.mode) {
     case 'hidden':
@@ -157,12 +168,23 @@ function IslandContent({
     case 'expanded':
       return <ExpandedView snapshot={snapshot} now={now} onOpen={onOpen} />
     case 'card': {
-      if (!view.card) return null
-      const { kind, session } = view.card
-      const close = (): void => onDismiss(cardKey(kind, session))
-      if (kind === 'waiting') return <WaitingCard session={session} onDismiss={close} />
-      if (kind === 'error') return <ErrorCard session={session} onDismiss={close} />
-      return <FinishedCard session={session} onDismiss={close} onOpen={onOpen} />
+      const card = view.card
+      if (!card) return null
+      if (card.kind === 'approval') {
+        return (
+          <ApprovalCard
+            approval={card.approval}
+            queued={card.queued}
+            now={now}
+            onDecide={(decision) => onDecide(card.approval, decision)}
+          />
+        )
+      }
+      if (card.kind === 'feedback') return <FeedbackCard feedback={card.feedback} />
+      const close = (): void => onDismiss(cardKey(card.kind, card.session))
+      if (card.kind === 'waiting') return <WaitingCard session={card.session} onDismiss={close} />
+      if (card.kind === 'error') return <ErrorCard session={card.session} onDismiss={close} />
+      return <FinishedCard session={card.session} onDismiss={close} onOpen={onOpen} />
     }
   }
 }

@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { createSessionsState, pruneSessions, reduceSessions, sortSessions } from '@shared/sessions'
+import {
+  createSessionsState,
+  markPermissionAnswered,
+  pruneSessions,
+  reduceSessions,
+  sortSessions
+} from '@shared/sessions'
 import type { SessionsState } from '@shared/types'
 import { hookEvent } from './helpers'
 
@@ -201,5 +207,17 @@ describe('state hygiene', () => {
       9_500
     )
     expect(sortSessions(state).map((s) => s.id)).toEqual(['needs-you', 'busy', 'session-1'])
+  })
+})
+
+describe('markPermissionAnswered', () => {
+  it('clears the wait as soon as Paul answers on the island', () => {
+    const { state, now } = replay(['UserPromptSubmit', 'PreToolUse.Bash', 'PermissionRequest.Bash'])
+    const allowed = markPermissionAnswered(state, 'session-1', 'allow', now + 10)
+    expect(allowed.sessions['session-1']).toMatchObject({ status: 'working' })
+    expect(allowed.sessions['session-1']!.pendingPermission).toBeUndefined()
+    const denied = markPermissionAnswered(state, 'session-1', 'deny', now + 10)
+    expect(denied.sessions['session-1']!.status).toBe('thinking')
+    expect(markPermissionAnswered(state, 'nobody', 'allow', now)).toBe(state)
   })
 })

@@ -116,3 +116,18 @@ Never rewrite an old decision. Supersede it with a new ADR and say why.
 - **Local speech-to-text.** Whisper running locally on the RTX 3050 (whisper.cpp bindings, or the faster-whisper models already on this PC), so a short request is text in about a second, offline and for free.
 - **Then the AI layer.** The text goes to the same router as everything else: questions, "what is Claude doing?", "summarise today", "explain the error on my screen".
 - **Safety.** Voice never approves a high-risk command, because a misheard word must not run `rm -rf`. Voice approvals, if added at all, are limited to low-risk requests and need a clear confirmation.
+
+## ADR-012 — Approvals: Suri holds the PermissionRequest until a click
+**Date:** 2026-10-04 · **Status:** Accepted (VS Code interactive behaviour still to confirm with Paul's check)
+
+**Context.** Phase 2 answers Claude Code's permission requests from the island. The spike showed that Claude Code waits for the PermissionRequest hook's answer before it falls back to its own prompt.
+
+**Decision.**
+- Suri keeps the HTTP request open and shows the approval card (oldest first, with a "+N waiting" count).
+- **Allow** answers `{"behavior":"allow"}`. **Deny** answers `{"behavior":"deny","message":"Denied from Suri."}`.
+- **Ask in Claude Code**, a 110 s timeout (the hook's own is 120 s), Claude Code closing the request, Pause, or Quit all answer empty, so Claude Code asks for itself. Nothing is ever left hanging.
+- Only a click answers. No keyboard shortcut or voice approvals (ADR-011).
+- An answer clears the session's wait at once (`markPermissionAnswered`), so the "answer in Claude Code" card never flashes.
+- The safety net (ADR-007) answers PreToolUse with `"ask"` for the high-risk rules in `src/shared/risk-rules.ts` (8 shell rules and 3 file rules, plus 2 medium ones shown on the card). It can be switched off from the tray.
+
+**Consequences.** One-click approvals without leaving the editor. While Suri holds a request, Claude Code's own prompt only appears once Suri steps aside, which is why "Ask in Claude Code" and the countdown are on the card.

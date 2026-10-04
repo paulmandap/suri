@@ -1,7 +1,14 @@
-import type { IslandSnapshot, Session } from './types'
+import type { IslandSnapshot, PendingApproval, Session } from './types'
 
 export type IslandMode = 'hidden' | 'peek' | 'compact' | 'expanded' | 'card'
-export type CardKind = 'waiting' | 'error' | 'finished'
+export type SessionCardKind = 'waiting' | 'error' | 'finished'
+
+/** The short "Allowed / Denied" moment after Paul clicks, before the island folds. */
+export interface DecisionFeedback {
+  id: string
+  decision: 'allow' | 'deny'
+  project: string
+}
 
 export interface IslandUiState {
   /** The pointer has rested over the island (or the top-centre hot zone). */
@@ -10,11 +17,17 @@ export interface IslandUiState {
   pinnedOpen: boolean
   /** Cards the user closed, by cardKey. */
   dismissed: Record<string, true>
+  feedback?: DecisionFeedback
 }
+
+export type IslandCard =
+  | { kind: 'approval'; approval: PendingApproval; queued: number }
+  | { kind: 'feedback'; feedback: DecisionFeedback }
+  | { kind: SessionCardKind; session: Session }
 
 export interface IslandView {
   mode: IslandMode
-  card?: { kind: CardKind; session: Session }
+  card?: IslandCard
   /** The session the compact bar talks about. */
   focus?: Session
 }
@@ -22,8 +35,8 @@ export interface IslandView {
 /** How long finished and error cards stay up on their own. */
 export const CARD_TTL_MS = 8_000
 
-/** Identifies one card occurrence, so closing it doesn't hide the next one. */
-export function cardKey(kind: CardKind, session: Session): string {
+/** Identifies one session card occurrence, so closing it doesn't hide the next one. */
+export function cardKey(kind: SessionCardKind, session: Session): string {
   const at =
     kind === 'waiting'
       ? session.pendingPermission?.at
@@ -33,9 +46,17 @@ export function cardKey(kind: CardKind, session: Session): string {
   return `${kind}:${session.id}:${at ?? 0}`
 }
 
+/** A stable key for any card, used to re-animate only when the card changes. */
+export function islandCardKey(card: IslandCard): string {
+  if (card.kind === 'approval') return `approval:${card.approval.id}`
+  if (card.kind === 'feedback') return `feedback:${card.feedback.id}`
+  return cardKey(card.kind, card.session)
+}
+
 /**
  * Decides what the island shows. Pure, so the whole decision table is unit
- * tested. Order matters: something waiting on Paul wins over everything.
+ * tested. Order matters: a held approval beats everything except the brief
+ * feedback for the one Paul just answered.
  */
 export function deriveIslandView(
   snapshot: IslandSnapshot | null,
@@ -51,7 +72,20 @@ export function deriveIslandView(
     return { mode: ui.pinnedOpen ? 'expanded' : 'peek' }
   }
 
-  const isOpen = (kind: CardKind, s: Session): boolean => !ui.dismissed[cardKey(kind, s)]
+  const focus = sessions[0]
+  if (ui.feedback) return { mode: 'card', card: { kind: 'feedback', feedback: ui.feedback }, focus }
+
+  const [approval, ...queued] = snapshot.approvals
+  if (approval) {
+    const session = sessions.find((s) => s.id === approval.sessionId) ?? focus
+    return {
+      mode: 'card',
+      card: { kind: 'approval', approval, queued: queued.length },
+      focus: session
+    }
+  }
+
+  const isOpen = (kind: SessionCardKind, s: Session): boolean => !ui.dismissed[cardKey(kind, s)]
   const fresh = (at: number | undefined): boolean => at !== undefined && now - at < CARD_TTL_MS
 
   const waiting = sessions.find(
@@ -59,7 +93,6 @@ export function deriveIslandView(
   )
   if (waiting) return { mode: 'card', card: { kind: 'waiting', session: waiting }, focus: waiting }
 
-  const focus = sessions[0]
   if (ui.pinnedOpen) return { mode: 'expanded', focus }
 
   const failed = sessions.find(

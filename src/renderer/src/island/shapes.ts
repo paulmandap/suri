@@ -33,6 +33,18 @@ export function islandShape(view: IslandView, sessionCount: number): IslandShape
       return { width: 560, height, radius: 30, background: '#000000', glow: SOFT }
     }
     case 'card':
+      if (view.card?.kind === 'approval') {
+        const high = view.card.approval.risk?.level === 'high'
+        const height = view.card.approval.risk ? 160 : 142
+        return high
+          ? { width: 540, height, radius: 30, background: '#160806', glow: RED }
+          : { width: 540, height, radius: 30, background: '#120c02', glow: AMBER }
+      }
+      if (view.card?.kind === 'feedback') {
+        return view.card.feedback.decision === 'allow'
+          ? { width: 300, height: 50, radius: 25, background: '#03100a', glow: GREEN }
+          : { width: 300, height: 50, radius: 25, background: '#130505', glow: RED }
+      }
       if (view.card?.kind === 'waiting') {
         return { width: 480, height: 128, radius: 30, background: '#120c02', glow: AMBER }
       }

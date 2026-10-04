@@ -84,10 +84,40 @@ export type HookServerStatus =
   | { state: 'listening'; port: number }
   | { state: 'error'; port: number; message: string }
 
+export type RiskLevel = 'medium' | 'high'
+
+export interface RiskFlag {
+  level: RiskLevel
+  /** Stable rule id, e.g. `force-push`. */
+  rule: string
+  /** One plain-English sentence for the card. */
+  reason: string
+}
+
+/** `ask` = step aside and let Claude Code show its own prompt. */
+export type ApprovalDecision = 'allow' | 'deny' | 'ask'
+
+/** A PermissionRequest Suri is holding until Paul answers (or it times out). */
+export interface PendingApproval {
+  id: string
+  sessionId: string
+  project: string
+  tool: string
+  verb: string
+  /** The full command or path, so Paul sees exactly what will run. */
+  detail: string
+  risk?: RiskFlag
+  createdAt: number
+  /** When Suri gives up and lets Claude Code ask instead. */
+  expiresAt: number
+}
+
 /** Everything the island needs, pushed from main after every change. */
 export interface IslandSnapshot {
   /** Most relevant first (see sortSessions). */
   sessions: Session[]
+  /** Oldest first. */
+  approvals: PendingApproval[]
   paused: boolean
   hookServer: HookServerStatus
   sentAt: number
@@ -100,4 +130,6 @@ export interface SuriSettings {
   paused: boolean
   /** Leave the overlay out of screen capture and sharing (ADR-005). */
   hideFromCapture: boolean
+  /** Force a prompt for high-risk commands even when they're allowed (ADR-007). */
+  safetyNet: boolean
 }

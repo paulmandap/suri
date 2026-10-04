@@ -59,6 +59,28 @@ export function reduceSessions(state: SessionsState, event: HookEvent, now: numb
   return { sessions: { ...state.sessions, [base.id]: applyEvent(base, event, now) } }
 }
 
+/**
+ * Paul answered a held PermissionRequest on the island. Clear the wait at
+ * once, so the "answer in Claude Code" card doesn't flash before Claude
+ * Code's next event arrives.
+ */
+export function markPermissionAnswered(
+  state: SessionsState,
+  sessionId: string,
+  decision: 'allow' | 'deny',
+  now: number
+): SessionsState {
+  const s = state.sessions[sessionId]
+  if (!s || !s.pendingPermission) return state
+  const status: SessionStatus = decision === 'allow' ? 'working' : 'thinking'
+  return {
+    sessions: {
+      ...state.sessions,
+      [sessionId]: { ...s, status, pendingPermission: undefined, lastEventAt: now }
+    }
+  }
+}
+
 /** Drops sessions that went quiet. Ones with a tool still running get four times as long. */
 export function pruneSessions(
   state: SessionsState,

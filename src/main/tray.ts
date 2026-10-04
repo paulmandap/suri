@@ -6,6 +6,7 @@ export interface TrayState {
   sessions: number
   paused: boolean
   hideFromCapture: boolean
+  safetyNet: boolean
   hookServer: HookServerStatus
 }
 
@@ -13,6 +14,7 @@ export interface TrayActions {
   open(): void
   togglePause(): void
   toggleHideFromCapture(): void
+  toggleSafetyNet(): void
   quit(): void
 }
 
@@ -38,6 +40,12 @@ export function createTray(getState: () => TrayState, actions: TrayActions): Sur
         { type: 'separator' },
         { label: 'Open', click: actions.open },
         { label: 'Pause', type: 'checkbox', checked: state.paused, click: actions.togglePause },
+        {
+          label: 'Safety net (ask before risky commands)',
+          type: 'checkbox',
+          checked: state.safetyNet,
+          click: actions.toggleSafetyNet
+        },
         {
           label: 'Hide from screen sharing',
           type: 'checkbox',

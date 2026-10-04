@@ -14,6 +14,8 @@ export interface HookRequest {
   url: string
   headers: Record<string, string | string[] | undefined>
   body: string
+  /** Aborted when Claude Code closes the request before Suri answers. */
+  signal?: AbortSignal
 }
 
 export interface HookReply {
@@ -27,7 +29,10 @@ export interface HookHandlerOptions {
   token: string
   isPaused: () => boolean
   /** Called for every valid, subscribed event. May return an answer (Phase 2 approvals). */
-  onEvent: (event: HookEvent) => HookAnswer | void | Promise<HookAnswer | void>
+  onEvent: (
+    event: HookEvent,
+    context: { signal: AbortSignal }
+  ) => HookAnswer | void | Promise<HookAnswer | void>
   log?: (line: string) => void
 }
 
@@ -78,7 +83,8 @@ export async function handleHookRequest(
   }
 
   try {
-    const answer = await opts.onEvent(parsed.event)
+    const signal = req.signal ?? new AbortController().signal
+    const answer = await opts.onEvent(parsed.event, { signal })
     return answer
       ? { status: 200, body: JSON.stringify(answer), contentType: 'application/json' }
       : EMPTY
@@ -115,6 +121,11 @@ export function createHookServer(opts: HookHandlerOptions): HookServer {
   server.keepAliveTimeout = 5_000
 
   async function serve(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    // A held PermissionRequest must notice when Claude Code stops waiting for it.
+    const gone = new AbortController()
+    res.on('close', () => {
+      if (!res.writableEnded) gone.abort()
+    })
     try {
       const chunks: Buffer[] = []
       let size = 0
@@ -133,7 +144,8 @@ export function createHookServer(opts: HookHandlerOptions): HookServer {
           method: req.method ?? '',
           url: req.url ?? '',
           headers: req.headers,
-          body: Buffer.concat(chunks).toString('utf8')
+          body: Buffer.concat(chunks).toString('utf8'),
+          signal: gone.signal
         },
         { ...opts, port: boundPort }
       )

@@ -20,7 +20,8 @@ const storedSchema = z.looseObject({
     .optional()
     .catch(undefined),
   paused: z.boolean().optional().catch(undefined),
-  hideFromCapture: z.boolean().optional().catch(undefined)
+  hideFromCapture: z.boolean().optional().catch(undefined),
+  safetyNet: z.boolean().optional().catch(undefined)
 })
 
 type Stored = z.infer<typeof storedSchema>
@@ -50,13 +51,15 @@ export function loadSettings(dir: string): SuriSettings {
     port: stored.port ?? DEFAULT_PORT,
     token: stored.token ?? randomBytes(32).toString('hex'),
     paused: stored.paused ?? false,
-    hideFromCapture: stored.hideFromCapture ?? true
+    hideFromCapture: stored.hideFromCapture ?? true,
+    safetyNet: stored.safetyNet ?? true
   }
   const complete =
     stored.port === settings.port &&
     stored.token === settings.token &&
     stored.paused === settings.paused &&
-    stored.hideFromCapture === settings.hideFromCapture
+    stored.hideFromCapture === settings.hideFromCapture &&
+    stored.safetyNet === settings.safetyNet
   if (!complete) writeAtomic(file, { ...stored, ...settings })
   return settings
 }

@@ -105,7 +105,7 @@ export function ErrorCard({ session, onDismiss }: CardProps): React.JSX.Element 
   )
 }
 
-function CardMascot({
+export function CardMascot({
   mood,
   jump = false,
   badge,

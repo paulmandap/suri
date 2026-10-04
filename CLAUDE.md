@@ -85,6 +85,6 @@ npm run lint
 npm run build          # typecheck + production bundle
 npm run build:win      # Windows installer (NSIS, per-user)
 npm run sandbox:hooks  # point sandbox/ at the running Suri (reads %APPDATA%\Suri\settings.json)
-npm run replay -- session|permission|error|multi|end   # feed real captured payloads to Suri
+npm run replay -- session|permission|risky|error|multi|end [--hold ms]   # feed real captured payloads to Suri
 npm run spike:hooks -- --decision none|allow|deny|ask   # Phase 0 hook logger
 ```

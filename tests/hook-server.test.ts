@@ -29,7 +29,7 @@ describe('handleHookRequest', () => {
   it('passes a valid event on and answers an empty 200', async () => {
     const opts = options()
     expect(await handleHookRequest(request(), opts)).toEqual({ status: 200, body: '' })
-    expect(opts.onEvent).toHaveBeenCalledWith(
+    expect(vi.mocked(opts.onEvent).mock.calls[0]?.[0]).toEqual(
       expect.objectContaining({
         hook_event_name: 'UserPromptSubmit',
         session_id: expect.any(String)
@@ -179,5 +179,40 @@ describe('createHookServer', () => {
       port,
       message: `Port ${port} is already in use.`
     })
+  })
+})
+
+describe('abort signal', () => {
+  it('hands onEvent a signal', async () => {
+    const opts = options()
+    await handleHookRequest(request(), opts)
+    expect(opts.onEvent).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    )
+  })
+
+  it('fires when the client hangs up before Suri answers', async () => {
+    let seen: AbortSignal | undefined
+    const onEvent = (_event: unknown, context: { signal: AbortSignal }): Promise<null> => {
+      seen = context.signal
+      return new Promise((resolve) => context.signal.addEventListener('abort', () => resolve(null)))
+    }
+    const server = createHookServer(options({ port: 0, onEvent }))
+    const status = await server.start()
+    if (status.state !== 'listening') throw new Error('not listening')
+    const client = new AbortController()
+    const pending = fetch(`http://127.0.0.1:${status.port}/hooks`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${TOKEN}`, 'content-type': 'application/json' },
+      body: BODY,
+      signal: client.signal
+    }).catch(() => null)
+    for (let i = 0; i < 50 && !seen; i++) await new Promise((r) => setTimeout(r, 20))
+    client.abort()
+    await pending
+    for (let i = 0; i < 50 && !seen?.aborted; i++) await new Promise((r) => setTimeout(r, 20))
+    expect(seen?.aborted).toBe(true)
+    await server.stop()
   })
 })
