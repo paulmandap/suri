@@ -1,72 +1,130 @@
-import { app, shell, BrowserWindow } from 'electron'
-import { join } from 'path'
-import { electronApp, optimizer, is } from '@electron-toolkit/utils'
-import icon from '../../resources/icon.png?asset'
+import { app, ipcMain, type BrowserWindow } from 'electron'
+import { join } from 'node:path'
+import { electronApp } from '@electron-toolkit/utils'
+import { IPC } from '@shared/ipc'
+import type { IslandSnapshot, SuriSettings } from '@shared/types'
+import { createHookServer } from './hook-server'
+import { openProjectFolder } from './open-project'
+import { applyContentProtection, createOverlayWindow, setOverlayInteractive } from './overlay'
+import { createSessionsStore } from './sessions-store'
+import { loadSettings, updateSettings } from './settings'
+import { createTray, type SuriTray } from './tray'
 
-function createWindow(): void {
-  // Create the browser window.
-  const mainWindow = new BrowserWindow({
-    title: 'Suri',
-    width: 900,
-    height: 670,
-    show: false,
-    autoHideMenuBar: true,
-    ...(process.platform === 'linux' ? { icon } : {}),
-    webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
-      sandbox: false
-    }
-  })
+// One fixed folder for dev and installed builds, so scripts/sandbox-hooks.mjs
+// can find settings.json. Must run before the app is ready.
+app.setPath('userData', join(app.getPath('appData'), 'Suri'))
 
-  mainWindow.on('ready-to-show', () => {
-    mainWindow.show()
-  })
-
-  mainWindow.webContents.setWindowOpenHandler((details) => {
-    shell.openExternal(details.url)
-    return { action: 'deny' }
-  })
-
-  // HMR for renderer base on electron-vite cli.
-  // Load the remote URL for development or the local html file for production.
-  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
-  } else {
-    mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
-  }
+if (!app.requestSingleInstanceLock()) {
+  app.quit()
+} else {
+  app
+    .whenReady()
+    .then(start)
+    .catch((err) => {
+      console.error('[suri] failed to start', err)
+      app.quit()
+    })
 }
 
-// This method will be called when Electron has finished
-// initialization and is ready to create browser windows.
-// Some APIs can only be used after this event occurs.
-app.whenReady().then(() => {
-  // Set app user model id for windows
+// A tray app: closing windows never quits; only "Quit Suri" does.
+app.on('window-all-closed', () => {})
+
+async function start(): Promise<void> {
   electronApp.setAppUserModelId('io.github.paulmandap.suri')
+  const userData = app.getPath('userData')
+  let settings: SuriSettings = loadSettings(userData)
+  const sessions = createSessionsStore()
+  let overlay: BrowserWindow | null = null
+  let tray: SuriTray | null = null
 
-  // Default open or close DevTools by F12 in development
-  // and ignore CommandOrControl + R in production.
-  // see https://github.com/alex8088/electron-toolkit/tree/master/packages/utils
-  app.on('browser-window-created', (_, window) => {
-    optimizer.watchWindowShortcuts(window)
+  const server = createHookServer({
+    port: settings.port,
+    token: settings.token,
+    isPaused: () => settings.paused,
+    onEvent: (event) => {
+      sessions.apply(event)
+      // Phase 1 only watches. Approvals (an answer to PermissionRequest) arrive in Phase 2.
+      return null
+    },
+    log: (line) => console.warn(`[suri] ${line}`)
   })
 
-  createWindow()
-
-  app.on('activate', function () {
-    // On macOS it's common to re-create a window in the app when the
-    // dock icon is clicked and there are no other windows open.
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+  const snapshot = (): IslandSnapshot => ({
+    sessions: sessions.list(),
+    paused: settings.paused,
+    hookServer: server.status(),
+    sentAt: Date.now()
   })
-})
 
-// Quit when all windows are closed, except on macOS. There, it's common
-// for applications and their menu bar to stay active until the user quits
-// explicitly with Cmd + Q.
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit()
+  // Coalesce bursts (a tool call is two events) into one push every 50 ms.
+  let scheduled: ReturnType<typeof setTimeout> | null = null
+  const push = (): void => {
+    if (scheduled) return
+    scheduled = setTimeout(() => {
+      scheduled = null
+      if (overlay && !overlay.isDestroyed()) overlay.webContents.send(IPC.snapshot, snapshot())
+      tray?.refresh()
+    }, 50)
   }
-})
+  sessions.onChange(push)
+  server.onStatus(push)
 
-// In this file you can include the rest of your app's specific main process
-// code. You can also put them in separate files and require them here.
+  overlay = createOverlayWindow({ hideFromCapture: settings.hideFromCapture })
+  const fromOverlay = (sender: Electron.WebContents): boolean =>
+    overlay !== null && !overlay.isDestroyed() && sender === overlay.webContents
+
+  ipcMain.on(IPC.rendererReady, (event) => {
+    if (fromOverlay(event.sender)) event.sender.send(IPC.snapshot, snapshot())
+  })
+  ipcMain.on(IPC.setInteractive, (event, interactive: unknown) => {
+    if (overlay && fromOverlay(event.sender) && typeof interactive === 'boolean') {
+      setOverlayInteractive(overlay, interactive)
+    }
+  })
+  // The renderer names a session; main looks up its folder. A path from the
+  // renderer is never trusted.
+  ipcMain.handle(IPC.openSession, async (event, sessionId: unknown) => {
+    if (!fromOverlay(event.sender) || typeof sessionId !== 'string') return false
+    const session = sessions.get(sessionId)
+    return session ? openProjectFolder(session.cwd) : false
+  })
+
+  const openIsland = (): void => {
+    if (overlay && !overlay.isDestroyed()) overlay.webContents.send(IPC.openIsland)
+  }
+
+  tray = createTray(
+    () => ({
+      sessions: sessions.list().length,
+      paused: settings.paused,
+      hideFromCapture: settings.hideFromCapture,
+      hookServer: server.status()
+    }),
+    {
+      open: openIsland,
+      togglePause: () => {
+        settings = updateSettings(userData, settings, { paused: !settings.paused })
+        push()
+      },
+      toggleHideFromCapture: () => {
+        settings = updateSettings(userData, settings, {
+          hideFromCapture: !settings.hideFromCapture
+        })
+        if (overlay && !overlay.isDestroyed())
+          applyContentProtection(overlay, settings.hideFromCapture)
+        push()
+      },
+      quit: () => app.quit()
+    }
+  )
+
+  app.on('second-instance', openIsland)
+  app.on('before-quit', () => {
+    void server.stop()
+    tray?.destroy()
+  })
+
+  const status = await server.start()
+  if (status.state === 'error') console.warn(`[suri] hook server: ${status.message}`)
+  setInterval(() => sessions.prune(), 60_000).unref()
+}

@@ -30,7 +30,7 @@ export default defineConfig(
   },
   {
     // Plain-JS throwaway scripts: TypeScript return-type rules don't apply.
-    files: ['spike/**/*.mjs'],
+    files: ['spike/**/*.mjs', 'scripts/**/*.mjs'],
     rules: {
       '@typescript-eslint/explicit-function-return-type': 'off'
     }

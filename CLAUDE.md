@@ -46,7 +46,8 @@ Then give copy-paste PowerShell blocks: `cd C:\paul\ai_tool_no-name-yet`, `git a
 
 ## Testing and measuring
 
-- `npm test` (Vitest) must pass with no network and Ollama stopped. Anything that needs a live model belongs in `evals/`, not `tests/`.
+- `npm test` (Vitest) must pass with no internet and Ollama stopped. Loopback servers on 127.0.0.1 are fine (the hook server test uses one). Anything that needs a live model belongs in `evals/`, not `tests/`.
+- Keep decisions in pure functions in `src/shared/` (`reduceSessions`, `deriveIslandView`) so they are tested without Electron.
 - Never assert an eval score in a unit test.
 - Hook payload shapes come from real captured payloads (`tests/fixtures/hooks/`), not from docs summaries. The summaries were wrong twice in Phase 0 (`tool_response`, `reason`).
 - Don't claim something works unless it was run. If only part works, say which part.
@@ -59,6 +60,11 @@ Then give copy-paste PowerShell blocks: `cd C:\paul\ai_tool_no-name-yet`, `git a
 - Windows first. Claude Code on Windows also has a `PowerShell` tool, so treat Bash and PowerShell commands alike.
 - Launching Electron from inside a Claude Code session in VS Code: the session inherits `ELECTRON_RUN_AS_NODE=1` from VS Code, which makes Electron run as plain Node. Unset it first (`env -u ELECTRON_RUN_AS_NODE …`). Paul's own terminal doesn't have this problem.
 - Don't build ahead of the current phase.
+
+## Dev switches
+
+- `SURI_ALLOW_CAPTURE=1` turns off "hide from screen sharing" for that run (screenshots, demo recordings).
+- `SURI_DEVTOOLS=1` opens DevTools for the island in a separate window (the island itself can never take focus).
 
 ## Documentation duties
 
@@ -78,5 +84,7 @@ npm run typecheck      # main + renderer types
 npm run lint
 npm run build          # typecheck + production bundle
 npm run build:win      # Windows installer (NSIS, per-user)
+npm run sandbox:hooks  # point sandbox/ at the running Suri (reads %APPDATA%\Suri\settings.json)
+npm run replay -- session|permission|error|multi|end   # feed real captured payloads to Suri
 npm run spike:hooks -- --decision none|allow|deny|ask   # Phase 0 hook logger
 ```
