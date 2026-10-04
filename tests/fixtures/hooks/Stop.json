@@ -1,0 +1,12 @@
+{
+  "session_id": "bc2e1766-e5f7-4a96-895e-064b8542b8d3",
+  "transcript_path": "C:\\Users\\example\\.claude\\projects\\C--work-demo-project\\bc2e1766-e5f7-4a96-895e-064b8542b8d3.jsonl",
+  "cwd": "C:\\work\\demo-project",
+  "prompt_id": "ae003e8a-b202-46f2-9fd7-f8e4f2209dc8",
+  "permission_mode": "default",
+  "hook_event_name": "Stop",
+  "stop_hook_active": false,
+  "last_assistant_message": "Done: notes.txt now has bread added to the shopping list, and the echo command ran successfully.",
+  "background_tasks": [],
+  "session_crons": []
+}

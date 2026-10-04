@@ -1,0 +1,13 @@
+{
+  "session_id": "9cab4d46-ae71-4183-b8f3-7b53196a9ac9",
+  "transcript_path": "C:\\Users\\example\\.claude\\projects\\C--work-demo-project\\9cab4d46-ae71-4183-b8f3-7b53196a9ac9.jsonl",
+  "cwd": "C:\\work\\demo-project",
+  "prompt_id": "7bdeba05-4923-400f-b108-bf76763c801b",
+  "permission_mode": "default",
+  "hook_event_name": "PermissionRequest",
+  "tool_name": "PowerShell",
+  "tool_input": {
+    "command": "echo run-d3",
+    "description": "Echo the string run-d3"
+  }
+}

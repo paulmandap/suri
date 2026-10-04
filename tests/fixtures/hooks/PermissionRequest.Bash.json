@@ -1,0 +1,13 @@
+{
+  "session_id": "f099a90d-61f1-4872-a3c2-1cce891321fe",
+  "transcript_path": "C:\\Users\\example\\.claude\\projects\\C--work-demo-project\\f099a90d-61f1-4872-a3c2-1cce891321fe.jsonl",
+  "cwd": "C:\\work\\demo-project",
+  "prompt_id": "f4c07486-4dec-4d3d-b8cc-e67a660c2ce1",
+  "permission_mode": "default",
+  "hook_event_name": "PermissionRequest",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "echo run-b-allowed",
+    "description": "Echo the string run-b-allowed"
+  }
+}

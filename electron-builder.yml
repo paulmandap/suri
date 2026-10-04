@@ -1,0 +1,27 @@
+appId: io.github.paulmandap.suri
+productName: Suri
+directories:
+  buildResources: build
+files:
+  - '!**/.vscode/*'
+  - '!src/*'
+  - '!electron.vite.config.{js,ts,mjs,cjs}'
+  - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,CHANGELOG.md,README.md}'
+  - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
+  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json,vitest.config.ts}'
+  - '!{CLAUDE.md,PROJECT_STATE.md}'
+  - '!{tests,evals,spike,sandbox,docs}/**'
+  - '!assets/mascot/source/**'
+asarUnpack:
+  - resources/**
+win:
+  executableName: suri
+  target: nsis
+nsis:
+  artifactName: ${name}-${version}-setup.${ext}
+  shortcutName: ${productName}
+  uninstallDisplayName: ${productName}
+  oneClick: true
+  perMachine: false
+  createDesktopShortcut: false
+npmRebuild: false

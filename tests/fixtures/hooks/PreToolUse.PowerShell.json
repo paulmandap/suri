@@ -1,0 +1,14 @@
+{
+  "session_id": "d9df2d1c-45ac-445e-b006-7bd84611b7ed",
+  "transcript_path": "C:\\Users\\example\\.claude\\projects\\C--work-demo-project\\d9df2d1c-45ac-445e-b006-7bd84611b7ed.jsonl",
+  "cwd": "C:\\work\\demo-project",
+  "prompt_id": "51c167d4-25f9-4194-b430-2511336b0cf6",
+  "permission_mode": "default",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "PowerShell",
+  "tool_input": {
+    "command": "echo run-d2",
+    "description": "Run echo command with run-d2 argument"
+  },
+  "tool_use_id": "toolu_014YYQ5QgU5fgJ88fy2iiVwL"
+}

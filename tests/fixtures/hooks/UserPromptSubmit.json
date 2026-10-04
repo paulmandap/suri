@@ -1,0 +1,9 @@
+{
+  "session_id": "bc2e1766-e5f7-4a96-895e-064b8542b8d3",
+  "transcript_path": "C:\\Users\\example\\.claude\\projects\\C--work-demo-project\\bc2e1766-e5f7-4a96-895e-064b8542b8d3.jsonl",
+  "cwd": "C:\\work\\demo-project",
+  "prompt_id": "ae003e8a-b202-46f2-9fd7-f8e4f2209dc8",
+  "permission_mode": "default",
+  "hook_event_name": "UserPromptSubmit",
+  "prompt": "Read notes.txt. Then append the line '- bread' to the end of notes.txt. Then run this shell command: echo hello-from-suri. Finish with one short sentence."
+}
