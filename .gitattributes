@@ -1,0 +1,10 @@
+# Keep LF line endings in the working tree on every machine, overriding a
+# global core.autocrlf=true. Prettier and .editorconfig both expect LF.
+* text=auto eol=lf
+
+# Binary assets: never convert.
+*.png binary
+*.ico binary
+*.icns binary
+*.webp binary
+*.wav binary
