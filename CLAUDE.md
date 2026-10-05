@@ -33,7 +33,7 @@ Then give copy-paste PowerShell blocks: `cd C:\paul\ai_tool_no-name-yet`, `git a
 
 - **Never block Claude Code.** Events that need no decision get an immediate empty 200. A PermissionRequest waits at most ~110 s, then gets an empty answer so Claude Code asks for itself. When Suri is paused, answer at once.
 - **Never write `~/.claude/settings.json`** without all of these: a BOM-tolerant parse, refusing invalid JSON, a merge that keeps other tools' hooks, a shown diff, a dated backup, a check that the file still matches what was previewed, an atomic write (temp file + rename), and Paul's explicit click. Uninstall removes only Suri's entries.
-- **Until Phase 3, test hooks only in `sandbox/`** (gitignored, its own git repo, its own `.claude/settings.local.json`). Never add hooks to the global settings during development.
+- **Tests never touch the real `~/.claude/settings.json`.** Unit tests use temp folders; an end-to-end run sets `CLAUDE_CONFIG_DIR` to a scratch folder. Only Paul's click in Settings installs the global hooks. Try risky hook changes in `sandbox/` first (gitignored, its own git repo, its own `.claude/settings.local.json`).
 - **Never approve, deny or "always allow" anything without an explicit click from Paul.**
 
 ## Security
@@ -64,7 +64,9 @@ Then give copy-paste PowerShell blocks: `cd C:\paul\ai_tool_no-name-yet`, `git a
 ## Dev switches
 
 - `SURI_ALLOW_CAPTURE=1` turns off "hide from screen sharing" for that run (screenshots, demo recordings).
-- `SURI_DEVTOOLS=1` opens DevTools for the island in a separate window (the island itself can never take focus).
+- `SURI_DEVTOOLS=1` opens DevTools for the island in a separate window (the island itself can never take focus), and for Settings.
+- `CLAUDE_CONFIG_DIR=<folder>` makes the installer edit `<folder>/settings.json` instead of `~/.claude/settings.json` (Claude Code reads the same variable). Use a scratch folder for tests.
+- `--settings` opens the Settings window at launch, or in the running Suri on a second launch.
 
 ## Documentation duties
 
@@ -82,7 +84,7 @@ npm run dev            # run the app with hot reload
 npm test               # unit tests (no network)
 npm run typecheck      # main + renderer types
 npm run lint
-npm run build          # typecheck + production bundle
+npm run build          # typecheck + production bundle + preload check
 npm run build:win      # Windows installer (NSIS, per-user)
 npm run sandbox:hooks  # point sandbox/ at the running Suri (reads %APPDATA%\Suri\settings.json)
 npm run replay -- session|permission|risky|error|multi|end [--hold ms]   # feed real captured payloads to Suri

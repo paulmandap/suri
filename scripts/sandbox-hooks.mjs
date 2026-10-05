@@ -1,7 +1,8 @@
 #!/usr/bin/env node
-// Points the sandbox project's Claude Code hooks at the running Suri app, for
-// development until the Phase 3 installer exists. Reads the port and token
-// from Suri's settings.json (Suri writes it on first launch).
+// Points the sandbox project's Claude Code hooks at the running Suri app. The
+// Settings window installs hooks for every project (ADR-013); this is for
+// trying hook changes in sandbox/ only. Reads the port and token from Suri's
+// settings.json (Suri writes it on first launch).
 //
 //   npm run sandbox:hooks             point the sandbox at Suri
 //   npm run sandbox:hooks -- --spike  point it back at the Phase 0 spike
@@ -33,6 +34,8 @@ const TOOL_EVENTS = new Set([
   'PostToolUseFailure',
   'PermissionRequest'
 ])
+// Keep in sync with TIMEOUTS in src/shared/hook-config.ts: an identical handler
+// in the global and sandbox settings then runs once.
 const TIMEOUT = { PermissionRequest: 120, SessionEnd: 2 }
 const BOM = String.fromCharCode(0xfeff)
 

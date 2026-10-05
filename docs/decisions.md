@@ -131,3 +131,35 @@ Never rewrite an old decision. Supersede it with a new ADR and say why.
 - The safety net (ADR-007) answers PreToolUse with `"ask"` for the high-risk rules in `src/shared/risk-rules.ts` (8 shell rules and 3 file rules, plus 2 medium ones shown on the card). It can be switched off from the tray.
 
 **Consequences.** One-click approvals without leaving the editor. While Suri holds a request, Claude Code's own prompt only appears once Suri steps aside, which is why "Ask in Claude Code" and the countdown are on the card.
+
+## ADR-013 — The hook installer: how Suri edits Claude Code's settings.json
+**Date:** 2026-10-05 · **Status:** Accepted
+
+**Context.** Phase 3 moves Suri from the sandbox project to every project, which means editing Claude Code's user settings. That file also holds Paul's permissions, model and other tools' hooks, so a bad write would break every Claude Code session. Plan decision 4 and CLAUDE.md list the rules; Coucou's installer (MIT) supplied the test cases.
+
+**Decision.**
+- **Which file:** `~/.claude/settings.json`, or `$CLAUDE_CONFIG_DIR/settings.json` when that is set (Claude Code moves its config there too).
+- **What goes in:** one matcher group per subscribed event (11), added after any existing groups, with `matcher: "*"` on tool events. Each is the same handler the sandbox uses (URL, `Authorization` header, timeout 10 s; PermissionRequest 120 s; SessionEnd 2 s). The Claude Code docs say an identical handler in two settings files runs once, so the sandbox shouldn't get events twice.
+- **Finding Suri's entries:** by shape, with no marker field (Claude Code validates its settings, so an unknown key is an avoidable risk). A Suri hook is an `http` hook to `127.0.0.1` or `localhost`, path `/hooks`, any port, with `Bearer` and 64 hex characters. Any port and token count, so an old install is replaced and never doubled. Lookalikes (another path, host or scheme, or a different token shape) are left alone, and the preview shows any removal before it happens.
+- **Merging (Coucou's rules):** a BOM is fine and an empty file means `{}`. Invalid JSON or a non-object is refused, because not knowing what's in the file is not the same as it being empty. Suri's hooks come out wherever they are, even from a group shared with another tool. Event lists and the `hooks` block are dropped only when removing Suri's hooks emptied them. A `hooks` block or event list with the wrong type is refused.
+- **Formatting:** key order, indent, CRLF or LF, the BOM and the whitespace around the JSON all stay as they were. The diff then shows only real changes, and install followed by uninstall gives back the exact original bytes.
+- **Writing safely:** the preview's diff masks Suri's token and any value whose key looks like a secret (the renderer never sees secrets). A sha256 fingerprint of the previewed bytes must still match at write time. A dated backup of those exact bytes goes next to the file (`settings.json.suri-backup-YYYYMMDD-HHMMSS`, created exclusively, `-2` on a same-second clash). The write is a temp file, fsync, then rename, retried briefly when Windows says the file is busy. A symlinked settings.json is written through. Only the newest preview can be applied, only once, and only if Suri's port and token haven't changed since.
+- **The click:** the Settings preload refuses `applyHooks` unless `navigator.userActivation.isActive` (a real click or key press). Main also checks the sender and the preview id.
+- **Status:** installed, not installed, needs an update (with the reason), or unreadable, plus warnings for `disableAllHooks` and for an `allowedHttpHookUrls` that wouldn't allow Suri. A folder watcher keeps it current.
+
+**Consequences.** Install and uninstall are safe to click and easy to undo. Backups pile up next to settings.json (small, and never deleted by Suri). JSON details that a parse can't keep (`1.0`, `\u` escapes, duplicate keys) are rewritten, and a file that isn't pretty-printed gets pretty-printed; both show in the diff. Uninstalling the Suri app doesn't remove the hooks yet (Phase 8). While Suri is closed, every project now shows "Stop hook error" once per turn (ADR-002).
+
+## ADR-014 — The Settings window: a second sandboxed window with its own preload
+**Date:** 2026-10-05 · **Status:** Accepted
+
+**Context.** Phase 3 adds a Settings window (Claude Code hooks, General, and an AI placeholder for Phase 4). It can change Claude Code's settings, so it needs the island's lockdown, and the island must not gain these powers.
+
+**Decision.**
+- An ordinary window that can take focus, with a dark title bar drawn by the page (`titleBarStyle: 'hidden'` + `titleBarOverlay`). Sandbox, context isolation, no Node, a strict CSP, and navigation and new windows refused.
+- Its own preload (`src/preload/settings.ts`) exposes `window.suriSettings` with six calls; the island keeps its own `window.suri`. Main checks the sender of every message and validates every payload with Zod (`src/shared/settings-schemas.ts`). The page never sends a path: "Show in Explorer" names a target and main looks up the path.
+- Two preload entries in the build. A sandboxed preload can't load a shared chunk, so the two share no runtime code, and `scripts/check-preloads.mjs` fails `npm run build` if a preload requires anything but `electron`. electron-vite's `isolatedEntries` option would do this too, but 5.0.0 crashes outside an interactive terminal (`process.stdout.clearLine`), which would break CI.
+- One Settings window at a time. `suri --settings` opens it, also as a second launch (for shortcuts and tests).
+- Changing the port starts the new hook server before stopping the old one, so a taken port never leaves Suri deaf. Held approvals step aside, and the installed hooks then show "needs an update".
+- "Start with Windows" only works in the installed app; a dev build would register electron.exe itself.
+
+**Consequences.** Least privilege per window. The two renderer pages share one JS chunk (React and motion).

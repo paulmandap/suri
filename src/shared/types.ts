@@ -84,6 +84,9 @@ export type HookServerStatus =
   | { state: 'listening'; port: number }
   | { state: 'error'; port: number; message: string }
 
+/** Whether Claude Code's user settings send every session's events to Suri (ADR-013). */
+export type HookState = 'installed' | 'not-installed' | 'outdated' | 'unreadable'
+
 export type RiskLevel = 'medium' | 'high'
 
 export interface RiskFlag {
@@ -120,6 +123,8 @@ export interface IslandSnapshot {
   approvals: PendingApproval[]
   paused: boolean
   hookServer: HookServerStatus
+  /** Suri's hooks in ~/.claude/settings.json. A project can still have its own (sandbox/). */
+  hooks: HookState
   sentAt: number
 }
 

@@ -32,6 +32,7 @@ function snapshot(sessions: Session[], extra: Partial<IslandSnapshot> = {}): Isl
     approvals: [],
     paused: false,
     hookServer: { state: 'listening', port: 47821 },
+    hooks: 'installed',
     sentAt: NOW,
     ...extra
   }

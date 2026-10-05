@@ -1,67 +1,78 @@
 # Project state
 
-_Last updated: 2026-10-04 (end of Phase 2)_
+_Last updated: 2026-10-05 (end of Phase 3)_
 
 Read `CLAUDE.md` first. The plan is in `~/.claude/plans/i-want-to-build-zany-gosling.md` (local only, not in the repo).
 
 ## Where we are
 
-**Phase 2 (approvals + safety net) is done.** The VS Code check is still open; it confirms how approvals behave in the VS Code extension.
+**Phase 3 (hook installer + Settings window) is done.** Suri can install its hooks into `~/.claude/settings.json` with a preview, a backup and a click, so it sees every Claude Code session, not just `sandbox/`. Paul hasn't installed them on his own settings yet (see Next). The VS Code check is still open.
 
 | Phase | Status |
 |---|---|
 | 0 Setup and spike | ✅ Done (VS Code check pending) |
 | 1 Overlay + live feed | ✅ Done |
 | 2 Approvals + safety net | ✅ Done |
-| 3 Hook installer + Settings | Next |
-| 4 AI layer + risk explainer + eval | |
+| 3 Hook installer + Settings | ✅ Done |
+| 4 AI layer + risk explainer + eval | Next |
 | 5 Mascot | |
 | 6 Recap, history, digest | |
 | 7 Drop a file, ask a question | |
 | Proposed: Screen helper + push-to-talk | Paul to confirm (ADR-010, ADR-011) |
 | 8 Ship and resume | |
 
-## Phase 2 results
+## Phase 3 results
 
-- **Approvals** (`src/main/approvals.ts`, ADR-012): Suri holds each PermissionRequest and shows an approval card with the exact command, any risk, a countdown, and **Allow / Deny / Ask in Claude Code**. Several requests queue up oldest first. A timeout (110 s), Claude Code closing the request, Pause or Quit all step aside with an empty answer.
-- **Safety net** (`src/shared/risk-rules.ts`, ADR-007): instant rules for wide deletes, pipe-to-shell, force push, discarding work, disk and system changes, shutdown, publishing, dropping data, and edits to Claude Code settings, SSH keys or git hooks. High risk answers PreToolUse with `"ask"`; medium risk only shows on the card. Tray toggle: "Safety net (ask before risky commands)", on by default.
-- **Cute moments:** the meerkat jumps to attention with a "!" (red for high risk), a soft ring breathes around the card, and a click gives a short "Allowed" hop or "Denied" face before the island folds.
-- **Hook server** now tells a held request when Claude Code hangs up (an AbortSignal).
-- **Verified:** typecheck, lint, **151 unit tests**, production build, and an end-to-end run. The `rm -rf /` replay got the safety net's "ask", and the held request showed the red approval card and stepped aside when the client gave up. The screenshots were deleted afterwards.
+- **Installer** (`src/shared/hook-config.ts`, `src/main/installer.ts`, ADR-013): adds one HTTP hook group per event (11) to Claude Code's user settings and takes out only Suri's entries again. It reads a BOM, refuses invalid JSON, keeps other tools' hooks and every other setting, and keeps the file's own format (indent, CRLF, BOM, whitespace), so install then uninstall gives back the exact bytes. Writing needs a preview, a click, a matching fingerprint and a dated backup next to the file, then an atomic replace. It honors `CLAUDE_CONFIG_DIR`.
+- **Settings window** (`src/main/settings-window.ts`, `src/preload/settings.ts`, `src/renderer/src/settings/`, ADR-014): opens from the tray (**Settings…**) or with `suri --settings`.
+  - **Claude Code:** status (connected, not installed, needs an update and why, or can't read), the file path, other hooks kept, then **Preview install / update / removal** with a line diff (tokens and keys masked) and the backup path, then a click to apply.
+  - **General:** the port (the hook server moves live; the hooks then show "needs an update"), Start with Windows (installed app only), Hide from screen sharing, Safety net.
+  - **AI:** a "coming soon" card for Phase 4.
+- **Tray and island:** the tray says when the hooks aren't installed or need an update and offers a shortcut to Settings. The island's peek and empty views say the same.
+- **Build:** a second preload and page; `scripts/check-preloads.mjs` now runs in `npm run build` and fails it if a sandboxed preload needs anything but `electron`.
+- **Verified:** typecheck, lint, **209 unit tests**, and the production build. Then an end-to-end run of the built app on a throwaway settings file (`CLAUDE_CONFIG_DIR` in a temp folder), driven over the DevTools protocol: **37/37 checks**. They covered the preview and masking, a script call without a click (refused), a file changed after the preview (refused, with a fresh preview), the install with its backup and kept format, moving the port to 47999 and back, the update, the removal back to the exact original bytes, and reopening Settings with `--settings`. Settings also loads under `npm run dev`. Paul's real `~/.claude/settings.json` and Suri's own settings were checked unchanged afterwards, and the screenshots were deleted.
 
 ## Try it yourself
 
-1. `npm run dev`.
-2. In a second terminal: `npm run replay -- risky`. Watch the red card; click Allow or Deny (the replay prints Suri's answer). Also try `npm run replay -- permission`.
-3. Live: `npm run sandbox:hooks`, then open `C:\paul\ai_tool_no-name-yet\sandbox` in a new VS Code window and use Claude Code there.
+1. `npm run dev`, then tray → **Settings…**
+2. **Claude Code** → **Preview install**. Read the diff (`+` lines are Suri's hooks), then click **Install hooks**. The backup path appears.
+3. Start Claude Code in any project: the island shows it.
+4. To undo: **Preview removal** → **Remove hooks**, or copy the backup over `settings.json`.
 
 ## Next
 
-1. **Paul: the VS Code check (about 3 minutes; Suri itself replaces the spike now).** With Suri running (`npm run dev`) and the sandbox hooks pointing at it (`npm run sandbox:hooks`):
-   1. Open `C:\paul\ai_tool_no-name-yet\sandbox` in a new VS Code window and ask Claude Code: `run the command: echo hello-vscode`.
-   2. Suri shows the approval card. Click **Allow**. Does the command run without you clicking anything in VS Code?
-   3. Ask again and click **Deny**. What does Claude say?
-   4. Ask for `git push --force` (the sandbox has no remote, so it's harmless). Does Suri's card appear (safety net), or only VS Code's own prompt?
-   5. Quit Suri (tray → Quit Suri) and ask once more. What does VS Code show?
-   6. Tell Claude what you saw. It goes into `docs/spike-hooks.md` and ADR-002 / ADR-012.
-2. **Phase 3 — hook installer + Settings window:** install Suri's hooks into `~/.claude/settings.json` with diff, backup and click (decision 4), plus a Settings window. After that, Suri works in every project, not just `sandbox/`.
-3. **Paul: confirm the screen helper and push-to-talk** (ADR-010, ADR-011) as a new phase after Phase 7.
-4. **Paul, any time:** update Ollama and pull `qwen3.5:9b` / `qwen3.5:4b`; make the mascot images (prompts in the plan).
+1. **Paul: install the hooks on your own settings (about 2 minutes).** Do steps 1–3 above, then:
+   1. Run Claude Code in a normal project (not `sandbox/`). Does the island show the session?
+   2. Quit Suri and send one prompt: you should see "Stop hook error" once (expected, ADR-002).
+   3. In `sandbox/`, check that each tool shows up once on the island, not twice. The Claude Code docs say identical hooks run once; if you see doubles, tell Claude and delete the `hooks` block in `sandbox/.claude/settings.local.json`.
+2. **Paul: the VS Code check (about 3 minutes).** Same steps as before, now in any project once the hooks are installed:
+   1. Ask Claude Code: `run the command: echo hello-vscode`. Suri shows the approval card. Click **Allow**. Does the command run without you clicking anything in VS Code?
+   2. Ask again and click **Deny**. What does Claude say?
+   3. Ask for `git push --force` in a repo with no remote. Does Suri's card appear (safety net), or only VS Code's own prompt?
+   4. Quit Suri (tray → Quit Suri) and ask once more. What does VS Code show?
+   5. Tell Claude what you saw. It goes into `docs/spike-hooks.md` and ADR-002 / ADR-012.
+3. **Phase 4 — AI layer + risk explainer + eval** (see the plan). The Settings window's AI tab is the place for providers and the Gemini key.
+4. **Paul: confirm the screen helper and push-to-talk** (ADR-010, ADR-011) as a new phase after Phase 7.
+5. **Paul, any time:** update Ollama and pull `qwen3.5:9b` / `qwen3.5:4b`; make the mascot images (prompts in the plan).
 
 ## How to run
 
 - `npm install` · `npm run dev` · `npm test` · `npm run typecheck` · `npm run lint` · `npm run build`
 - Electron 44 downloads its ~100 MB binary the first time it runs, so the first `npm run dev` on a fresh clone takes longer.
 - `npm run sandbox:hooks` (needs Suri started once) · `npm run replay -- session|permission|risky|error|multi|end [--hold ms]`
-- Dev switches: `SURI_ALLOW_CAPTURE=1` (show Suri in screenshots), `SURI_DEVTOOLS=1` (island DevTools).
+- Dev switches: `SURI_ALLOW_CAPTURE=1` (show Suri in screenshots), `SURI_DEVTOOLS=1` (DevTools for the island and Settings), `CLAUDE_CONFIG_DIR=<folder>` (point the installer at a test settings.json), `--settings` (open Settings at launch).
 
 ## Known issues
 
+- Uninstalling the Suri app doesn't remove its hooks yet. Use Settings → Remove hooks first (Phase 8 adds an uninstall step).
+- With the hooks installed, every project shows "Stop hook error" once per turn while Suri is closed (ADR-002).
+- Not verified live yet: that Claude Code runs the sandbox's identical hook only once, and that a running session picks up new hooks without a restart. The docs say both; Next → 1 checks them.
 - Not confirmed yet in VS Code: whether a held PermissionRequest blocks VS Code's own dialog, and whether a PreToolUse `"ask"` leads to Suri's card or only VS Code's prompt. The VS Code check answers both.
+- The diff preview can show a new block as `+ },` / `+ {` … instead of `− }` / `+ },`. It's a correct diff, just shifted by a line.
 - The safety-net rules are pattern-based. They err on the side of asking (an `echo "rm -rf /"` would be flagged too). Phase 4 adds the LLM explanation and the eval set.
 - No sound yet for "needs you" (it comes with the sound pack in Phase 5).
 - With two active sessions, the compact bar's focus flips between them (polish in Phase 5).
 - "Open in VS Code" from a session row hasn't been clicked through by hand yet (ADR-008).
 - The tray icon is still the Electron default; the mascot is a placeholder (Phase 5).
-- ESLint 9 is end-of-life upstream, but the electron-toolkit configs don't support 10 yet. The renderer bundle triggers Vite's 500 kB warning. Revisit both before shipping.
+- ESLint 9 is end-of-life upstream, but the electron-toolkit configs don't support 10 yet. The renderer's shared chunk triggers Vite's 500 kB warning. Revisit both before shipping.
 - No license chosen yet. Pick one before the repo goes public.

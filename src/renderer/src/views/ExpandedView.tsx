@@ -29,7 +29,9 @@ export function ExpandedView({ snapshot, now, onOpen }: Props): React.JSX.Elemen
         <div className="flex flex-1 flex-col items-center justify-center text-center">
           <div className="text-[13px] text-white/80">No Claude Code sessions yet</div>
           <div className="mt-1 text-[11px] text-white/45">
-            Start Claude Code in a project that sends its hooks to Suri.
+            {snapshot?.hooks === 'installed'
+              ? 'Start Claude Code in any project and it shows up here.'
+              : 'Install the hooks (tray → Settings) to see every Claude Code session.'}
           </div>
         </div>
       ) : (

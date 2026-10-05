@@ -1,0 +1,31 @@
+@import 'tailwindcss';
+
+/* An ordinary dark window, unlike the island's transparent one. */
+:root {
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  background: #0b0b0e;
+}
+
+body {
+  font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  cursor: default;
+}
+
+/* The page draws the title bar (titleBarOverlay), so it marks where dragging works. */
+.app-drag {
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+
+.app-no-drag {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}

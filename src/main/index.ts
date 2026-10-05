@@ -1,15 +1,20 @@
-import { app, ipcMain, type BrowserWindow } from 'electron'
-import { join } from 'node:path'
+import { app, ipcMain, shell, type BrowserWindow } from 'electron'
+import { dirname, join } from 'node:path'
 import { electronApp } from '@electron-toolkit/utils'
+import { hookUrl } from '@shared/hook-config'
 import { IPC } from '@shared/ipc'
 import { assessRisk } from '@shared/risk-rules'
+import { SETTINGS_IPC, type SettingsView, type UpdateResult } from '@shared/settings-ipc'
+import type { GeneralPatch } from '@shared/settings-schemas'
 import type { ApprovalDecision, IslandSnapshot, SuriSettings } from '@shared/types'
 import { createApprovalBroker, safetyNetAnswer } from './approvals'
-import { createHookServer } from './hook-server'
+import { createHookServer, type HookHandlerOptions, type HookServer } from './hook-server'
+import { claudeSettingsFile, createInstaller } from './installer'
 import { openProjectFolder } from './open-project'
 import { applyContentProtection, createOverlayWindow, setOverlayInteractive } from './overlay'
 import { createSessionsStore } from './sessions-store'
 import { loadSettings, updateSettings } from './settings'
+import { createSettingsWindow, registerSettingsIpc } from './settings-window'
 import { createTray, type SuriTray } from './tray'
 
 // One fixed folder for dev and installed builds, so scripts/sandbox-hooks.mjs
@@ -39,6 +44,7 @@ async function start(): Promise<void> {
   let settings: SuriSettings = loadSettings(userData)
   const sessions = createSessionsStore()
   let overlay: BrowserWindow | null = null
+  let settingsWindow: BrowserWindow | null = null
   let tray: SuriTray | null = null
 
   const approvals = createApprovalBroker({
@@ -50,8 +56,8 @@ async function start(): Promise<void> {
     }
   })
 
-  const server = createHookServer({
-    port: settings.port,
+  const serverOptions = (port: number): HookHandlerOptions => ({
+    port,
     token: settings.token,
     isPaused: () => settings.paused,
     onEvent: (event, { signal }) => {
@@ -67,28 +73,67 @@ async function start(): Promise<void> {
     },
     log: (line) => console.warn(`[suri] ${line}`)
   })
+  let server: HookServer = createHookServer(serverOptions(settings.port))
+
+  // Suri's hooks in Claude Code's user settings. Written only from the
+  // Settings window, after a preview and a click (ADR-013).
+  const installer = createInstaller({
+    file: claudeSettingsFile(),
+    target: () => ({ port: settings.port, token: settings.token })
+  })
+  // Read it before any window asks, so the island never flashes "not installed".
+  await installer.refresh()
+  installer.watch()
+
+  // A dev build would register electron.exe itself, so only the installed app may.
+  let openAtLogin = app.isPackaged && app.getLoginItemSettings().openAtLogin
 
   const snapshot = (): IslandSnapshot => ({
     sessions: sessions.list(),
     approvals: approvals.list(),
     paused: settings.paused,
     hookServer: server.status(),
+    hooks: installer.status().inspection.state,
     sentAt: Date.now()
   })
 
+  const settingsView = (): SettingsView => {
+    const { file, exists, inspection, lastBackup } = installer.status()
+    return {
+      general: {
+        port: settings.port,
+        hideFromCapture: settings.hideFromCapture,
+        safetyNet: settings.safetyNet,
+        openAtLogin,
+        canOpenAtLogin: app.isPackaged
+      },
+      server: server.status(),
+      hooks: { file, exists, url: hookUrl(settings.port), inspection, lastBackup }
+    }
+  }
+
   // Coalesce bursts (a tool call is two events) into one push every 50 ms.
   let scheduled: ReturnType<typeof setTimeout> | null = null
+  let lastView = ''
   const push = (): void => {
     if (scheduled) return
     scheduled = setTimeout(() => {
       scheduled = null
       if (overlay && !overlay.isDestroyed()) overlay.webContents.send(IPC.snapshot, snapshot())
+      if (settingsWindow && !settingsWindow.isDestroyed()) {
+        // Session events don't change Settings; only send it a view that did change.
+        const view = settingsView()
+        const key = JSON.stringify(view)
+        if (key !== lastView) settingsWindow.webContents.send(SETTINGS_IPC.view, view)
+        lastView = key
+      }
       tray?.refresh()
     }, 50)
   }
   sessions.onChange(push)
   approvals.onChange(push)
-  server.onStatus(push)
+  installer.onChange(push)
+  let unwatchServer = server.onStatus(push)
 
   overlay = createOverlayWindow({ hideFromCapture: settings.hideFromCapture })
   const fromOverlay = (sender: Electron.WebContents): boolean =>
@@ -125,35 +170,126 @@ async function start(): Promise<void> {
     push()
   }
 
+  const setHideFromCapture = (hide: boolean): void => {
+    change({ hideFromCapture: hide })
+    if (overlay && !overlay.isDestroyed()) applyContentProtection(overlay, hide)
+  }
+
+  const setOpenAtLogin = (open: boolean): void => {
+    if (!app.isPackaged) return
+    app.setLoginItemSettings({ openAtLogin: open })
+    openAtLogin = app.getLoginItemSettings().openAtLogin
+    push()
+  }
+
+  /**
+   * Moves the hook server to another port. The new server starts before the
+   * old one stops, so a taken port never leaves Suri deaf. Also retries the
+   * same port after it failed at startup.
+   */
+  const changePort = async (port: number): Promise<UpdateResult> => {
+    if (port === settings.port && server.status().state === 'listening') return { ok: true }
+    const next = createHookServer(serverOptions(port))
+    const status = await next.start()
+    if (status.state !== 'listening') {
+      return { ok: false, message: status.state === 'error' ? status.message : 'It did not start.' }
+    }
+    const previous = server
+    unwatchServer()
+    server = next
+    unwatchServer = next.onStatus(push)
+    // Requests held on the old port: step aside so Claude Code asks for itself.
+    approvals.releaseAll()
+    await previous.stop()
+    change({ port })
+    // The installed hooks still name the old port; Settings now offers the update.
+    await installer.refresh()
+    return { ok: true }
+  }
+
+  const updateGeneral = async (patch: GeneralPatch): Promise<UpdateResult> => {
+    if (patch.hideFromCapture !== undefined) setHideFromCapture(patch.hideFromCapture)
+    if (patch.safetyNet !== undefined) change({ safetyNet: patch.safetyNet })
+    if (patch.openAtLogin !== undefined) setOpenAtLogin(patch.openAtLogin)
+    if (patch.port !== undefined) return changePort(patch.port)
+    return { ok: true }
+  }
+
+  const openSettings = (): void => {
+    if (settingsWindow && !settingsWindow.isDestroyed()) {
+      if (settingsWindow.isMinimized()) settingsWindow.restore()
+      settingsWindow.show()
+      settingsWindow.focus()
+      return
+    }
+    const win = createSettingsWindow()
+    settingsWindow = win
+    lastView = ''
+    // Catch edits made while Settings was in the background.
+    win.on('focus', () => void installer.refresh())
+    win.on('closed', () => {
+      if (settingsWindow === win) settingsWindow = null
+    })
+  }
+
+  registerSettingsIpc({
+    isSettings: (sender) =>
+      settingsWindow !== null &&
+      !settingsWindow.isDestroyed() &&
+      sender === settingsWindow.webContents,
+    view: () => {
+      const view = settingsView()
+      lastView = JSON.stringify(view)
+      return view
+    },
+    updateGeneral,
+    previewHooks: (action) => installer.preview(action),
+    applyHooks: (previewId) => installer.apply(previewId),
+    // Main picks the path; the page only says which one.
+    reveal: async (target) => {
+      const { file, exists, lastBackup } = installer.status()
+      if (target === 'last-backup') {
+        if (!lastBackup) return false
+        shell.showItemInFolder(lastBackup)
+        return true
+      }
+      if (exists) {
+        shell.showItemInFolder(file)
+        return true
+      }
+      return (await shell.openPath(dirname(file))) === ''
+    }
+  })
+
   tray = createTray(
     () => ({
       sessions: sessions.list().length,
       paused: settings.paused,
       hideFromCapture: settings.hideFromCapture,
       safetyNet: settings.safetyNet,
-      hookServer: server.status()
+      hookServer: server.status(),
+      hooks: installer.status().inspection.state
     }),
     {
       open: openIsland,
+      openSettings,
       togglePause: () => {
         change({ paused: !settings.paused })
         // Paused means Suri isn't there: step aside on anything it's holding.
         if (settings.paused) approvals.releaseAll()
       },
-      toggleHideFromCapture: () => {
-        change({ hideFromCapture: !settings.hideFromCapture })
-        if (overlay && !overlay.isDestroyed()) {
-          applyContentProtection(overlay, settings.hideFromCapture)
-        }
-      },
+      toggleHideFromCapture: () => setHideFromCapture(!settings.hideFromCapture),
       toggleSafetyNet: () => change({ safetyNet: !settings.safetyNet }),
       quit: () => app.quit()
     }
   )
 
-  app.on('second-instance', openIsland)
+  // `suri --settings` opens Settings, also when Suri is already running (a shortcut can use it).
+  const wantsSettings = (argv: readonly string[]): boolean => argv.includes('--settings')
+  app.on('second-instance', (_event, argv) => (wantsSettings(argv) ? openSettings() : openIsland()))
   app.on('before-quit', () => {
     approvals.releaseAll()
+    installer.close()
     void server.stop()
     tray?.destroy()
   })
@@ -161,4 +297,5 @@ async function start(): Promise<void> {
   const status = await server.start()
   if (status.state === 'error') console.warn(`[suri] hook server: ${status.message}`)
   setInterval(() => sessions.prune(), 60_000).unref()
+  if (wantsSettings(process.argv)) openSettings()
 }
