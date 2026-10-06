@@ -1,5 +1,5 @@
 import type { IslandSnapshot } from '@shared/types'
-import { PlaceholderMascot } from '../mascot/PlaceholderMascot'
+import { MascotHead } from '../mascot/Mascot'
 
 /** Why Claude Code's events might not reach Suri, and where to fix it. */
 const HOOKS_NOTE = {
@@ -22,10 +22,7 @@ export function PeekView({ snapshot }: { snapshot: IslandSnapshot | null }): Rea
   const tone = broken ? 'text-red-300' : hooksNote ? 'text-amber-200/80' : 'text-white/55'
   return (
     <div className="flex h-full items-center gap-2.5 px-4">
-      <PlaceholderMascot
-        mood={snapshot?.paused ? 'sleepy' : broken ? 'worried' : 'idle'}
-        size={26}
-      />
+      <MascotHead mood={snapshot?.paused ? 'sleepy' : broken ? 'worried' : 'idle'} size={28} pop />
       <div className="min-w-0 leading-tight">
         <div className="text-[13px] font-semibold">Suri</div>
         <div className={`truncate text-[11px] ${tone}`}>{status}</div>

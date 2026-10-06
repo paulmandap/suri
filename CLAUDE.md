@@ -91,5 +91,6 @@ npm run build:win      # Windows installer (NSIS, per-user)
 npm run sandbox:hooks  # point sandbox/ at the running Suri (reads %APPDATA%\Suri\settings.json)
 npm run replay -- session|permission|risky|explain|error|multi|end [--hold ms]   # feed real captured payloads to Suri
 npm run eval:risk      # risk eval on live models (evals/README.md); never part of npm test
+python scripts/mascot/build_mascot.py   # sprites and icons from assets/mascot/source (needs rembg; see its README)
 npm run spike:hooks -- --decision none|allow|deny|ask   # Phase 0 hook logger
 ```

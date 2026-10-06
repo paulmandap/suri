@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from 'motion/react'
 import type { Session } from '@shared/types'
 import { headline, moodFor } from '../lib/format'
-import { PlaceholderMascot } from '../mascot/PlaceholderMascot'
+import { MascotHead } from '../mascot/Mascot'
 import { StatusDot } from './parts'
 
 export function CompactView({
@@ -14,7 +14,7 @@ export function CompactView({
   const line = headline(session)
   return (
     <div className="flex h-full items-center gap-2.5 px-3.5">
-      <PlaceholderMascot mood={moodFor(session.status)} size={26} />
+      <MascotHead mood={moodFor(session.status)} size={28} pop />
       <div className="flex min-w-0 flex-1 items-baseline gap-1.5 text-[12.5px] leading-tight">
         <span className="shrink-0 font-semibold">{session.project}</span>
         <span className="shrink-0 text-white/30">·</span>

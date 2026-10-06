@@ -1,8 +1,8 @@
 import { motion, useReducedMotion } from 'motion/react'
 import type { Session } from '@shared/types'
 import { statsLabel } from '../lib/format'
-import type { Mood } from '../lib/format'
-import { PlaceholderMascot } from '../mascot/PlaceholderMascot'
+import { MascotBody } from '../mascot/Mascot'
+import type { Pose } from '../mascot/sprites'
 import { only } from '../lib/only'
 
 interface CardProps {
@@ -19,7 +19,7 @@ export function WaitingCard({ session, onDismiss }: CardProps): React.JSX.Elemen
   const pending = session.pendingPermission
   return (
     <div className="flex h-full items-center gap-3.5 px-4">
-      <CardMascot mood="alert" jump badge="!" badgeTone="bg-amber-400 text-black" />
+      <CardMascot pose="alert" jump badge="!" badgeTone="bg-amber-400 text-black" />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5 text-[12px]">
           <span className="font-semibold">{session.project}</span>
@@ -50,7 +50,7 @@ export function FinishedCard({
 }: CardProps & { onOpen: (sessionId: string) => void }): React.JSX.Element {
   return (
     <div className="flex h-full items-center gap-3.5 px-4">
-      <CardMascot mood="happy" jump />
+      <CardMascot pose="happy" jump />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5 text-[12px]">
           <span className="font-semibold">{session.project}</span>
@@ -84,7 +84,7 @@ export function FinishedCard({
 export function ErrorCard({ session, onDismiss }: CardProps): React.JSX.Element {
   return (
     <div className="flex h-full items-center gap-3.5 px-4">
-      <CardMascot mood="worried" badge="✕" badgeTone="bg-red-400 text-black" />
+      <CardMascot pose="worried" badge="✕" badgeTone="bg-red-400 text-black" />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5 text-[12px]">
           <span className="font-semibold">{session.project}</span>
@@ -106,12 +106,12 @@ export function ErrorCard({ session, onDismiss }: CardProps): React.JSX.Element 
 }
 
 export function CardMascot({
-  mood,
+  pose,
   jump = false,
   badge,
   badgeTone = ''
 }: {
-  mood: Mood
+  pose: Pose
   jump?: boolean
   badge?: string
   badgeTone?: string
@@ -124,7 +124,7 @@ export function CardMascot({
         animate={jump && !reduce ? { y: [0, -9, 0, -4, 0] } : { y: 0 }}
         transition={{ duration: 0.9, ease: 'easeOut', delay: 0.15 }}
       >
-        <PlaceholderMascot mood={mood} size={46} />
+        <MascotBody pose={pose} size={58} />
       </motion.div>
       {badge && (
         <motion.div

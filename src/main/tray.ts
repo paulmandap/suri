@@ -1,6 +1,8 @@
-import { Menu, Tray, nativeImage, type MenuItemConstructorOptions } from 'electron'
+import { Menu, Tray, type MenuItemConstructorOptions } from 'electron'
 import type { HookServerStatus, HookState } from '@shared/types'
-import iconPath from '../../resources/icon.png?asset'
+// Suri's head in seven sizes (scripts/mascot/build_mascot.py): Windows picks
+// the one that fits the tray at the display's scaling, so it stays sharp.
+import trayIcon from '../../resources/tray.ico?asset'
 
 export interface TrayState {
   sessions: number
@@ -33,7 +35,7 @@ const HOOKS_ITEM: Partial<Record<HookState, string>> = {
 }
 
 export function createTray(getState: () => TrayState, actions: TrayActions): SuriTray {
-  const tray = new Tray(nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 }))
+  const tray = new Tray(trayIcon)
   let lastKey = ''
 
   const refresh = (): void => {

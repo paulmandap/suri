@@ -1,15 +1,27 @@
 # Suri's mascot sheets
 
-Save the images from ChatGPT in this folder, with these names:
+Save the images from ChatGPT in this folder, with these names (JPEG, JFIF, PNG or WebP all work):
 
 | File             | From                                                                |
 | ---------------- | ------------------------------------------------------------------- |
-| `turnaround.png` | Prompt 1: the same meerkat from four sides                          |
-| `poses.png`      | Prompt 2: six poses, one per mood                                   |
-| `blank-face.png` | Prompt 3: the face without eyes or mouth (Suri draws those in code) |
-| `extras.png`     | Prompt 4, optional: wave, thumbs up, shield, pointing               |
+| `turnaround.jpg` | Prompt 1: the same meerkat from four sides                          |
+| `poses.jpg`      | Prompt 2: six poses, one per mood                                   |
+| `blank-face.jpg` | Prompt 3: the face without eyes or mouth (Suri draws those in code) |
+| `extras.jpg`     | Prompt 4, optional: wave, thumbs up, shield, pointing               |
 
-Phase 5 cuts them into sprites (in `assets/mascot/sprites/`) and animates them in code.
+A checkerboard painted where the transparency should be is fine: the script cuts the background out.
+
+## Rebuild the sprites and icons
+
+After replacing a sheet, run the script (ADR-019). The first time, it needs Python and rembg, about 500 MB with its model:
+
+```powershell
+py -3.13 -m venv $env:LOCALAPPDATA\suri-mascot-venv
+& "$env:LOCALAPPDATA\suri-mascot-venv\Scripts\pip" install "rembg[cpu]"
+& "$env:LOCALAPPDATA\suri-mascot-venv\Scripts\python" scripts\mascot\build_mascot.py
+```
+
+It writes the cut-out sheets (`assets/mascot/cutout/`), the sprites and `head.json` (`assets/mascot/sprites/`), the tray icon (`resources/tray.ico`) and the app icons (`build/`). `npm test` then checks that every sprite the island uses exists, and that `head.json` still describes a face.
 
 ## How to use the prompts
 

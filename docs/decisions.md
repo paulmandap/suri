@@ -229,3 +229,18 @@ The deciding fact: a risk check is nearly always a cold start. Paul's settings l
 - Settings → General has **When Claude needs you** (on by default) and **When a session finishes** (off), each with a "play" link.
 
 **Consequences.** No audio files, licences or downloads, and the tests check length, loudness, clicks and timing without speakers. Verified live by reading the speakers' peak meter: 0.16 during a replayed request, 0.00 at rest. The sounds are a first pass for Paul to tune by ear.
+
+## ADR-019 — The mascot: Paul's sheets cut by a script, the head's eyes drawn in code
+**Date:** 2026-10-07 · **Status:** Accepted
+
+**Context.** Paul's four ChatGPT sheets (turnaround, poses, blank face, extras) arrived as JPEGs with a grey-and-white checkerboard painted where transparency should be. The turnaround came as two rows of the same four views, and one figure's tail reaches into its neighbour's grid cell. The island shows Suri at 18 to 58 px on a black background, where any leftover checkerboard would show as a light halo.
+
+**Decision.**
+- **One script, run when the art changes** (`scripts/mascot/build_mascot.py`). It's Python, because the background remover (rembg) is; Pillow, NumPy and SciPy come with it, so the app gains no dependency. Its outputs are committed (cut-outs, sprites, `head.json`, icons), so building the app never needs Python. The plan suggested a sharp script; rembg needs Python either way.
+- **The background goes by segmentation, not by colour.** The silver laptop, the blanket and the eye highlights share the checkerboard's greys, so a colour key would eat them. BiRefNet (lite) was checked against isnet on black at 3× zoom; its fur edges came out smoother.
+- **Figures are found as separate blobs**, after bridging gaps of 6 px so a prop (the table, the blanket) stays with its figure. Each figure is cleared of its neighbours' pixels, then read in order and named per sheet. Sprites are WebP, scaled through premultiplied alpha so edges don't darken, at 192 px for bodies and 128 px for the head. Only the sprites the island uses are imported (about 75 KB).
+- **Cards show Paul's poses**, one per mood. A high-risk approval raises the shield, and "Allowed" gives a thumbs-up. They breathe slowly and pop in when the pose changes.
+- **The small spots show the blank head with eyes and a mouth drawn in SVG**, at the eye patches and nose that the script measured (`head.json`). It blinks, changes expression with the mood, and glances toward the pointer using the mouse moves Electron already forwards near the island: no polling, so nothing runs at idle. With `pop`, it springs up from below its box, like a meerkat out of its burrow.
+- **Icons come from the front view's head:** a seven-size `tray.ico` (Windows picks the size that fits the display's scaling), the app icon (`build/icon.ico`, `build/icon.png`) and the Settings window's icon.
+
+**Consequences.** New art takes one command, and `tests/mascot.test.ts` checks that every imported sprite exists and that `head.json` describes a sane face. Re-running needs about 500 MB for rembg and its model. Not used yet: the three-quarter, side and back views (for a turning animation), and the wave and pointing poses.

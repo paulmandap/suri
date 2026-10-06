@@ -1,7 +1,7 @@
 import type { HookServerStatus, IslandSnapshot, Session } from '@shared/types'
 import { formatElapsed, headline, moodFor, statusLabel } from '../lib/format'
 import { MAX_ROWS } from '../island/shapes'
-import { PlaceholderMascot } from '../mascot/PlaceholderMascot'
+import { MascotHead } from '../mascot/Mascot'
 import { only } from '../lib/only'
 import { ActivityChip, StatusDot } from './parts'
 
@@ -17,7 +17,7 @@ export function ExpandedView({ snapshot, now, onOpen }: Props): React.JSX.Elemen
   return (
     <div className="flex h-full flex-col px-3 pb-3 pt-2.5">
       <div className="flex items-center gap-2 px-1.5 pb-1.5">
-        <PlaceholderMascot mood={moodFor(sessions[0]?.status)} size={22} />
+        <MascotHead mood={moodFor(sessions[0]?.status)} size={24} />
         <span className="text-[13px] font-semibold">Suri</span>
         <ServerNote server={snapshot?.hookServer} paused={snapshot?.paused ?? false} />
         <span className="ml-auto text-[11px] text-white/40">

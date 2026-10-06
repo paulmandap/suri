@@ -11,7 +11,9 @@ files:
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json,vitest.config.ts}'
   - '!{CLAUDE.md,PROJECT_STATE.md}'
   - '!{tests,evals,spike,sandbox,docs}/**'
-  - '!assets/mascot/source/**'
+  # The sprites are bundled into out/renderer; the sheets and cut-outs stay out.
+  - '!assets/**'
+  - '!scripts/**'
 asarUnpack:
   - resources/**
 win:

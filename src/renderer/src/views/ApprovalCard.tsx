@@ -3,7 +3,7 @@ import { approvalLevel, type DecisionFeedback } from '@shared/island-mode'
 import type { ApprovalDecision, PendingApproval, RiskLevel } from '@shared/types'
 import { formatCountdown, riskModelLabel, wantsTo } from '../lib/format'
 import { only } from '../lib/only'
-import { PlaceholderMascot } from '../mascot/PlaceholderMascot'
+import { MascotBody } from '../mascot/Mascot'
 import { CardMascot } from './Cards'
 
 interface Props {
@@ -33,7 +33,8 @@ export function ApprovalCard({ approval, queued, now, onDecide }: Props): React.
         transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
       />
       <CardMascot
-        mood="alert"
+        // High risk: Suri raises its shield (ADR-019).
+        pose={high ? 'shield' : 'alert'}
         jump
         badge="!"
         badgeTone={high ? 'bg-red-400 text-black' : 'bg-amber-400 text-black'}
@@ -174,7 +175,7 @@ export function FeedbackCard({ feedback }: { feedback: DecisionFeedback }): Reac
         animate={{ scale: 1, rotate: 0 }}
         transition={{ type: 'spring', stiffness: 520, damping: 16 }}
       >
-        <PlaceholderMascot mood={allowed ? 'happy' : 'worried'} size={30} />
+        <MascotBody pose={allowed ? 'thumbs-up' : 'worried'} size={40} />
       </motion.div>
       <span
         className={`text-[13px] font-semibold ${allowed ? 'text-emerald-300' : 'text-red-300'}`}

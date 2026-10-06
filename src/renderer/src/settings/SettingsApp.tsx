@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { SettingsView } from '@shared/settings-ipc'
-import { PlaceholderMascot } from '../mascot/PlaceholderMascot'
+import { MascotHead } from '../mascot/Mascot'
 import { AiPane } from './AiPane'
 import { ClaudeCodePane } from './ClaudeCodePane'
 import { GeneralPane } from './GeneralPane'
@@ -39,7 +39,7 @@ export function SettingsApp(): React.JSX.Element {
     <div className="flex h-full flex-col text-zinc-200">
       {/* Our title bar: drag it to move the window; Windows draws the buttons on the right. */}
       <header className="app-drag flex h-10 shrink-0 items-center gap-2 pl-4 pr-[150px]">
-        <PlaceholderMascot size={18} />
+        <MascotHead mood="idle" size={18} />
         <span className="text-[12.5px] font-semibold text-zinc-100">Suri</span>
         <span className="text-[12.5px] text-zinc-500">Settings</span>
       </header>

@@ -1,12 +1,12 @@
 # Project state
 
-_Last updated: 2026-10-06 (Phase 5 started: sounds and a steady compact bar; the risk model picked by the eval)_
+_Last updated: 2026-10-07 (Phase 5 done: Paul's mascot art in the island, the tray and the app icon)_
 
 Read `CLAUDE.md` first. The plan is in `~/.claude/plans/i-want-to-build-zany-gosling.md` (local only, not in the repo).
 
 ## Where we are
 
-**Phase 4 is done**, and the eval has measured all four local models: the risk explainer now defaults to `qwen2.5:7b-instruct` (ADR-017). **Phase 5 has started** with the parts that need no art: sounds (ADR-018) and a compact bar that no longer flips between busy sessions. The mascot itself waits for Paul's images. The hooks are installed on Paul's own settings (this Claude Code chat showed on the island on 2026-10-06); the VS Code check is still open (see Next).
+**Phase 5 is done: Suri is Paul's meerkat now** (ADR-019): his poses on the cards, his blank head with code-drawn eyes in the small spots, and his art as the tray and app icon. Sounds (ADR-018) and a steady compact bar came first. **Next is Phase 6** (session recap, history, daily digest). The hooks are installed on Paul's own settings (this Claude Code chat showed on the island on 2026-10-06); the VS Code check is still open (see Next).
 
 | Phase | Status |
 |---|---|
@@ -15,20 +15,24 @@ Read `CLAUDE.md` first. The plan is in `~/.claude/plans/i-want-to-build-zany-gos
 | 2 Approvals + safety net | ✅ Done |
 | 3 Hook installer + Settings | ✅ Done |
 | 4 AI layer + risk explainer + eval | ✅ Done. Gemini not measured yet (overloaded) |
-| 5 Mascot | In progress: sounds ✅, steady compact bar ✅, art waits for Paul's images |
-| 6 Recap, history, digest | |
+| 5 Mascot | ✅ Done (a turning animation is left for later) |
+| 6 Recap, history, digest | Next |
 | 7 Drop a file, ask a question | |
 | Proposed: Screen helper + push-to-talk | Paul to confirm (ADR-010, ADR-011) |
 | 8 Ship and resume | |
 
-## Phase 5 so far (ADR-018)
+## Phase 5 results (ADR-018, ADR-019)
 
+- **Paul's art, cut by a script** (`scripts/mascot/build_mascot.py`, run once per art change; how-to in `assets/mascot/source/README.md`). The four sheets came as JPEGs with a checkerboard painted in. rembg's BiRefNet model cuts the background out, which a colour key can't do: the laptop, the blanket and the eye highlights share the checkerboard's greys. The script finds each figure as its own blob (so a stray tail stays with its owner) and writes 15 WebP sprites, the blank head and `head.json`, plus the icons. Its outputs are committed, so building the app never needs Python.
+- **On the island** (`src/renderer/src/mascot/`): the cards show Paul's poses, one per mood. A high-risk approval raises the **shield**, and "Allowed" gives a **thumbs-up**. They breathe slowly and pop in when the pose changes. The compact bar, peek and header show the **blank head with eyes and a mouth drawn in SVG**, placed from the measured eye patches. It changes expression with the mood, blinks, glances toward the pointer as it comes near (using mouse moves Electron already forwards, so nothing runs at idle), and springs up from its "burrow" when the bar appears.
+- **Icons:** the front view's head as a seven-size `resources/tray.ico` (sharp at any display scaling), the app icon (`build/icon.ico`, `build/icon.png`) and the Settings window's icon. The installer no longer packs `assets/` or the dev scripts.
 - **Sounds, made in code** (`src/shared/sounds.ts`): three short cues built from a few notes, no audio files. *Needs you*: two quick rising chirps, the meerkat's lookout call. *Finished*: a warm step up. *Error*: one low note that sinks. Only something new makes a sound: a request that just arrived (not the next one in the queue), a new wait, a finish or a failure. Nothing on the first snapshot after a start, or while paused.
 - **Settings → General → Sounds:** "When Claude needs you" (on by default) and "When a session finishes" (off), each with a "play" link. Two new fields in Suri's `settings.json`; each falls back to its default on its own.
 - **A steady compact bar** (`pickFocus` in `src/shared/island-mode.ts`): the bar keeps its session for at least 5 s instead of jumping to whichever session sent the last event. A session that needs Paul takes over at once, and a busy one beats a finished one. Working and thinking count as the same: a session switches between them on every tool call (that's what the first try got wrong, caught live).
 - **Verified:**
-  - **Unit tests:** typecheck, lint and **445 unit tests** (22 new): the cues' length, loudness, clicks and timing, when each cue plays, the focus rules, and the new settings.
-  - **End to end:** the speakers' peak meter (Windows Core Audio) read 0.16 while a replayed request popped up, against 0.00 at rest, so the chirp plays. Ten screenshots of two replayed sessions plus this chat showed the bar switch once and stay. Before the fix it flipped on every event.
+  - **Unit tests:** typecheck, lint, the build and **451 unit tests**: the cues' length, loudness, clicks and timing, when each cue plays, the focus rules, the new settings, the pupils' look, that every sprite the island imports exists, and that `head.json` describes a face.
+  - **The art:** every sprite checked on black (the island's colour) and at 3× zoom: no checkerboard halo, props intact. The measured eye patches checked with outlines on the head. Running the script twice gives byte-identical files.
+  - **End to end:** replayed sessions in the dev app showed the head in the compact bar, the happy pose on "finished", the shield on a high-risk request (then the AI's answer), and the worried pose on an error. The speakers' peak meter read 0.16 while a replayed request popped up, against 0.00 at rest, so the chirp plays. Ten screenshots of two replayed sessions plus this chat showed the bar switch once and stay; before the fix it flipped on every event.
 
 ## Phase 4b results (ADR-016, ADR-017)
 
@@ -82,6 +86,7 @@ Read `CLAUDE.md` first. The plan is in `~/.claude/plans/i-want-to-build-zany-gos
 3. **Claude Code** tab → **Preview install** → read the diff → **Install hooks**. Start Claude Code in any project: the island shows it. To undo: **Preview removal** → **Remove hooks**.
 4. **The risk explainer:** with Suri running, `npm run replay -- explain` holds a request for a delete hidden in Python: no rule fires, then the AI turns the card red (about 8 s the first time, while the model loads). `npm run replay -- risky` shows the rule and the AI together.
 5. **Sounds:** Settings → General → Sounds → "play" next to each switch. `npm run replay -- permission` makes the island chirp.
+6. **The mascot:** `npm run replay -- session` (the head in the compact bar, then the happy pose), `-- risky` (the shield), `-- error` (worried). Move the pointer toward the island and the head looks at it.
 
 ## Next
 
@@ -94,7 +99,7 @@ Read `CLAUDE.md` first. The plan is in `~/.claude/plans/i-want-to-build-zany-gos
    3. Ask for `git push --force` in a repo with no remote. Does Suri's card appear (safety net), or only VS Code's own prompt?
    4. Quit Suri (tray → Quit Suri) and ask once more. What does VS Code show?
    5. Tell Claude what you saw. It goes into `docs/spike-hooks.md` and ADR-002 / ADR-012.
-3. **Paul: make the mascot images.** `assets/mascot/source/README.md` has the four prompts, ready to copy, and the file names: `turnaround.png`, `poses.png`, `blank-face.png` (and `extras.png`). The rest of Phase 5 starts from them: cut the sheets into sprites, then the poses per state, blinking, the pop-up from the burrow, and the tray icon.
+3. **Phase 6: session recap, history, daily digest** (plan, Phase 6). SQLite (`better-sqlite3`, which needs the MSVC build tools already on this PC) with a schema and migrations; store events (truncated), decisions and recaps. On Stop, the AI writes `{ title, summary, filesChanged[], commands[], outcome, followUps[] }` for the finished card and a history view. The digest turns today's rows into Markdown standup notes (tray → Today's digest, copy, save as .md). Measure the recap the way the risk explainer was measured, since its default model (`qwen3.5:9b`) hasn't been tested on this job.
 4. ~~Listen to the sounds~~: Paul is fine with them as they are (2026-10-06).
 5. **Paul, when Gemini isn't overloaded: the Gemini eval** (about 7 minutes, paced for the free tier). Set the key in that terminal first (evals/README.md shows how, without it landing in PowerShell's history), then `npm run eval:risk -- --models gemini-3.8-flash`.
 6. **Paul: confirm the screen helper and push-to-talk** (ADR-010, ADR-011) as a new phase after Phase 7.
@@ -127,6 +132,7 @@ Read `CLAUDE.md` first. The plan is in `~/.claude/plans/i-want-to-build-zany-gos
 - The safety-net rules match text, so they err on the side of asking: a command that only mentions `rm -rf /` (an `echo`, a commit message) is flagged high, and the AI can't lower it (eval case `low-echo-text`). Deletes written in Python or Node pass the rules; the AI is what catches them.
 - `prisma migrate reset`, `migrate:fresh` and `db:drop` now force a prompt (they wipe the database). On a local dev database that's one extra click; the rule is easy to drop to medium if it gets in the way.
 - "Open in VS Code" from a session row hasn't been clicked through by hand yet (ADR-008).
-- The tray icon is still the Electron default; the mascot is a placeholder (Phase 5).
+- The mascot doesn't turn yet: the three-quarter, side and back views are cut but unused, and so are the wave and pointing poses.
+- Re-running the art script needs Python and rembg (about 500 MB with its model). Only needed when the art changes.
 - ESLint 9 is end-of-life upstream, but the electron-toolkit configs don't support 10 yet. The renderer's shared chunk triggers Vite's 500 kB warning. Revisit both before shipping.
 - No license chosen yet. Pick one before the repo goes public.
