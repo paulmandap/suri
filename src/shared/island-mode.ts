@@ -1,4 +1,4 @@
-import type { IslandSnapshot, PendingApproval, Session } from './types'
+import type { IslandSnapshot, PendingApproval, RiskLevel, Session } from './types'
 
 export type IslandMode = 'hidden' | 'peek' | 'compact' | 'expanded' | 'card'
 export type SessionCardKind = 'waiting' | 'error' | 'finished'
@@ -44,6 +44,14 @@ export function cardKey(kind: SessionCardKind, session: Session): string {
         ? session.failedAt
         : session.finishedAt
   return `${kind}:${session.id}:${at ?? 0}`
+}
+
+/**
+ * The level an approval card shows: the AI's combined level once it answered
+ * (never below the rule's, see risk.ts), else the rule's. None when neither has spoken.
+ */
+export function approvalLevel(approval: PendingApproval): RiskLevel | undefined {
+  return approval.explanation?.level ?? approval.risk?.level
 }
 
 /** A stable key for any card, used to re-animate only when the card changes. */

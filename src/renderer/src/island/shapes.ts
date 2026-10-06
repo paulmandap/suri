@@ -1,4 +1,4 @@
-import type { IslandView } from '@shared/island-mode'
+import { approvalLevel, type IslandView } from '@shared/island-mode'
 
 export interface IslandShape {
   width: number
@@ -18,6 +18,11 @@ const GREEN = '0px 16px 46px -14px rgba(52, 211, 153, 0.45)'
 
 export const ROW_HEIGHT = 84
 export const MAX_ROWS = 3
+/**
+ * One height whatever the risk check says, so Allow and Deny never move
+ * under the pointer when the AI's answer arrives.
+ */
+export const APPROVAL_HEIGHT = 196
 
 export function islandShape(view: IslandView, sessionCount: number): IslandShape {
   switch (view.mode) {
@@ -34,8 +39,9 @@ export function islandShape(view: IslandView, sessionCount: number): IslandShape
     }
     case 'card':
       if (view.card?.kind === 'approval') {
-        const high = view.card.approval.risk?.level === 'high'
-        const height = view.card.approval.risk ? 160 : 142
+        // Turns red when the AI finds a danger the rules missed.
+        const high = approvalLevel(view.card.approval) === 'high'
+        const height = APPROVAL_HEIGHT
         return high
           ? { width: 540, height, radius: 30, background: '#160806', glow: RED }
           : { width: 540, height, radius: 30, background: '#120c02', glow: AMBER }

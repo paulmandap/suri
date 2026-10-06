@@ -1,7 +1,7 @@
 import { motion, useReducedMotion } from 'motion/react'
-import type { DecisionFeedback } from '@shared/island-mode'
-import type { ApprovalDecision, PendingApproval, RiskFlag } from '@shared/types'
-import { formatCountdown, wantsTo } from '../lib/format'
+import { approvalLevel, type DecisionFeedback } from '@shared/island-mode'
+import type { ApprovalDecision, PendingApproval, RiskLevel } from '@shared/types'
+import { formatCountdown, riskModelLabel, wantsTo } from '../lib/format'
 import { only } from '../lib/only'
 import { PlaceholderMascot } from '../mascot/PlaceholderMascot'
 import { CardMascot } from './Cards'
@@ -20,7 +20,8 @@ interface Props {
  */
 export function ApprovalCard({ approval, queued, now, onDecide }: Props): React.JSX.Element {
   const reduce = useReducedMotion() ?? false
-  const high = approval.risk?.level === 'high'
+  const level = approvalLevel(approval)
+  const high = level === 'high'
   const ring = high ? 'ring-red-400/60' : 'ring-amber-300/50'
   const allowTone = high ? 'bg-amber-300 hover:bg-amber-200' : 'bg-white hover:bg-white/90'
   return (
@@ -53,7 +54,7 @@ export function ApprovalCard({ approval, queued, now, onDecide }: Props): React.
         <div className="mt-1.5 max-h-[38px] select-text overflow-y-auto break-all rounded-lg bg-white/[0.07] px-2 py-1 font-mono text-[11.5px] leading-snug text-amber-50">
           {approval.detail}
         </div>
-        {approval.risk && <RiskLine risk={approval.risk} />}
+        <RiskBlock approval={approval} level={level} />
         <div className="mt-auto flex items-center gap-2.5 pt-1.5">
           <button
             type="button"
@@ -87,14 +88,78 @@ export function ApprovalCard({ approval, queued, now, onDecide }: Props): React.
   )
 }
 
-function RiskLine({ risk }: { risk: RiskFlag }): React.JSX.Element {
-  const high = risk.level === 'high'
+const LEVEL: Record<RiskLevel, { label: string; tone: string }> = {
+  high: { label: 'High risk', tone: 'text-red-300' },
+  medium: { label: 'Careful', tone: 'text-amber-200' },
+  low: { label: 'Low risk', tone: 'text-emerald-300' }
+}
+
+/**
+ * The rule's verdict at once, then the AI's plain-English explanation as it
+ * arrives (ADR-016). The badge shows the higher of the two levels.
+ */
+function RiskBlock({
+  approval,
+  level
+}: {
+  approval: PendingApproval
+  level: RiskLevel | undefined
+}): React.JSX.Element {
+  const reduce = useReducedMotion() ?? false
+  const { risk, explanation, checkingRisk, riskNote } = approval
+  // Without a rule, the AI's summary takes the rule's place next to the badge.
+  const headline = risk?.reason ?? explanation?.summary
   return (
-    <div className="mt-1.5 flex min-w-0 items-center gap-1.5 text-[11px]">
-      <span className={`shrink-0 font-semibold ${high ? 'text-red-300' : 'text-amber-200'}`}>
-        {high ? 'High risk' : 'Careful'}
-      </span>
-      <span className="truncate text-white/60">{risk.reason}</span>
+    <div className="mt-1.5 min-w-0 text-[11px] leading-snug">
+      {level && headline && (
+        <div className="flex min-w-0 items-baseline gap-1.5">
+          <motion.span
+            // A new key when the AI raises the level, so the badge pops again.
+            key={level}
+            className={`shrink-0 font-semibold ${LEVEL[level].tone}`}
+            initial={reduce ? false : { scale: 0.7, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ type: 'spring', stiffness: 500, damping: 18 }}
+          >
+            {LEVEL[level].label}
+          </motion.span>
+          <span
+            className={`min-w-0 ${risk ? 'truncate text-white/60' : 'line-clamp-2 text-white/80'}`}
+          >
+            {headline}
+          </span>
+        </div>
+      )}
+      {risk && explanation && (
+        <div className="mt-0.5 line-clamp-2 text-white/80">{explanation.summary}</div>
+      )}
+      {explanation && (
+        <div className="mt-0.5 flex min-w-0 gap-1.5 text-[10px] text-white/35">
+          <span className="shrink-0">
+            {explanation.reversible ? 'Can be undone' : "Can't be undone"}
+          </span>
+          {explanation.reasons[0] && (
+            <span className="min-w-0 truncate" title={explanation.reasons.join('\n')}>
+              · {explanation.reasons[0]}
+            </span>
+          )}
+          <span className="ml-auto shrink-0 font-mono">{riskModelLabel(explanation)}</span>
+        </div>
+      )}
+      {checkingRisk && (
+        <motion.div
+          className="mt-0.5 text-[10.5px] text-white/40"
+          animate={reduce ? { opacity: 0.6 } : { opacity: [0.35, 0.8, 0.35] }}
+          transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
+        >
+          Suri is checking this…
+        </motion.div>
+      )}
+      {!checkingRisk && !explanation && riskNote && (
+        <div className="mt-0.5 truncate text-[10px] text-white/35" title={riskNote}>
+          No AI check: {riskNote}
+        </div>
+      )}
     </div>
   )
 }

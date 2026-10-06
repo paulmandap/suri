@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { HookEvent } from '@shared/hook-events'
+import type { RiskExplanation } from '@shared/types'
+import type { RiskInput, RiskOutcome } from '../src/main/ai/risk'
 import {
   APPROVAL_TIMEOUT_MS,
   DENY_MESSAGE,
@@ -8,6 +10,34 @@ import {
   safetyNetAnswer
 } from '../src/main/approvals'
 import { hookEvent } from './helpers'
+
+const EXPLANATION: RiskExplanation = {
+  level: 'high',
+  modelLevel: 'high',
+  summary: 'Deletes everything on drive C.',
+  reasons: ['Nothing can bring it back.'],
+  reversible: false,
+  route: { provider: 'ollama', model: 'qwen3.5:9b' }
+}
+
+/** An explain() the test settles by hand, recording what it was asked. */
+function manualExplain(): {
+  explain: (input: RiskInput, signal: AbortSignal) => Promise<RiskOutcome>
+  asked: { input: RiskInput; signal: AbortSignal }[]
+  settle: (outcome: RiskOutcome | Error) => void
+} {
+  const asked: { input: RiskInput; signal: AbortSignal }[] = []
+  let settle: (outcome: RiskOutcome | Error) => void = () => {}
+  const explain = (input: RiskInput, signal: AbortSignal): Promise<RiskOutcome> => {
+    asked.push({ input, signal })
+    return new Promise((resolve, reject) => {
+      settle = (outcome) => (outcome instanceof Error ? reject(outcome) : resolve(outcome))
+    })
+  }
+  return { explain, asked, settle: (outcome) => settle(outcome) }
+}
+
+const tick = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0))
 
 type PermissionRequest = Extract<HookEvent, { hook_event_name: 'PermissionRequest' }>
 
@@ -109,6 +139,84 @@ describe('approval broker', () => {
     expect(long!.detail).toHaveLength(2000)
     expect(long!.detail.endsWith('…')).toBe(true)
     broker.releaseAll()
+  })
+})
+
+describe('approval broker: the AI risk check', () => {
+  it('asks with the rule and the project folder, then fills the card in', async () => {
+    const { explain, asked, settle } = manualExplain()
+    const changes = vi.fn()
+    const broker = createApprovalBroker({ explain })
+    broker.onChange(changes)
+    void broker.request(permissionRequest('rm -rf /'))
+    expect(broker.list()[0]).toMatchObject({ checkingRisk: true, risk: { rule: 'wide-delete' } })
+    expect(broker.list()[0]?.explanation).toBeUndefined()
+    expect(asked[0]?.input).toMatchObject({
+      tool: 'Bash',
+      detail: 'rm -rf /',
+      cwd: 'C:\\work\\demo-project',
+      rule: { level: 'high', rule: 'wide-delete' }
+    })
+
+    settle({ ok: true, explanation: EXPLANATION })
+    await tick()
+    expect(broker.list()[0]).toMatchObject({ checkingRisk: false, explanation: EXPLANATION })
+    expect(changes).toHaveBeenCalledTimes(2) // held, then explained
+    broker.releaseAll()
+  })
+
+  it('says why there is no explanation, or that the check broke', async () => {
+    const failing = manualExplain()
+    const broker = createApprovalBroker({ explain: failing.explain })
+    void broker.request(permissionRequest())
+    failing.settle({ ok: false, reason: "Can't reach Ollama. Is it running?" })
+    await tick()
+    expect(broker.list()[0]).toMatchObject({
+      checkingRisk: false,
+      riskNote: "Can't reach Ollama. Is it running?"
+    })
+    expect(broker.list()[0]?.explanation).toBeUndefined()
+
+    const broken = manualExplain()
+    const other = createApprovalBroker({ explain: broken.explain })
+    void other.request(permissionRequest())
+    broken.settle(new Error('boom'))
+    await tick()
+    expect(other.list()[0]).toMatchObject({ checkingRisk: false, riskNote: 'Error: boom' })
+    broker.releaseAll()
+    other.releaseAll()
+  })
+
+  it('stops the check once Paul answers, and ignores a late explanation', async () => {
+    const { explain, asked, settle } = manualExplain()
+    const broker = createApprovalBroker({ explain })
+    const answer = broker.request(permissionRequest())
+    broker.decide(broker.list()[0]!.id, 'allow')
+    expect(asked[0]?.signal.aborted).toBe(true)
+    settle({ ok: true, explanation: EXPLANATION })
+    await tick()
+    expect(broker.list()).toEqual([])
+    expect(await answer).toEqual(answerFor('allow'))
+  })
+
+  it('runs no check without an explainer', () => {
+    const broker = createApprovalBroker()
+    void broker.request(permissionRequest())
+    expect(broker.list()[0]?.checkingRisk).toBeUndefined()
+    broker.releaseAll()
+  })
+
+  it('keeps holding the request when the check throws straight away', async () => {
+    const broker = createApprovalBroker({
+      explain: () => {
+        throw new Error('broken')
+      }
+    })
+    const answer = broker.request(permissionRequest())
+    await tick()
+    expect(broker.list()[0]).toMatchObject({ checkingRisk: false, riskNote: 'Error: broken' })
+    broker.decide(broker.list()[0]!.id, 'deny')
+    expect(await answer).toEqual(answerFor('deny'))
   })
 })
 

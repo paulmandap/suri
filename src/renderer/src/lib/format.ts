@@ -1,4 +1,4 @@
-import type { Activity, Session, SessionStatus } from '@shared/types'
+import type { Activity, RiskExplanation, Session, SessionStatus } from '@shared/types'
 
 export type Mood = 'idle' | 'working' | 'alert' | 'happy' | 'sleepy' | 'worried'
 
@@ -85,6 +85,12 @@ const WANTS_TO: Record<string, string> = {
 /** "Running" becomes "run", for "demo wants to run ...". */
 export function wantsTo(verb: string, tool: string): string {
   return WANTS_TO[verb] ?? `use ${tool}`
+}
+
+/** Which model explained a risk, and why the local one stepped in for Gemini. */
+export function riskModelLabel(explanation: RiskExplanation): string {
+  const { route, fellBackFrom } = explanation
+  return fellBackFrom ? `${route.model} (Gemini: ${fellBackFrom.reason})` : route.model
 }
 
 /** Time left before Claude Code asks for itself, as m:ss. */

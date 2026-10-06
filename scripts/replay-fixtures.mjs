@@ -6,6 +6,7 @@
 //   npm run replay -- session      a full turn: read, run, edit, finish
 //   npm run replay -- permission   a held permission request (approval card)
 //   npm run replay -- risky        a PreToolUse the safety net must flag
+//   npm run replay -- explain      a risky command no rule sees: only the AI can flag it
 //   npm run replay -- error        a turn that ends in StopFailure
 //   npm run replay -- multi        two sessions at once
 //   npm run replay -- end          end every replay session
@@ -47,6 +48,14 @@ const turn = [
   'Stop'
 ]
 const risky = { tool_name: 'Bash', tool_input: { command: 'rm -rf /', description: 'synthetic' } }
+// A delete written in Python: the rules don't see it, so the card starts calm.
+const sneaky = {
+  tool_name: 'Bash',
+  tool_input: {
+    command: `python -c "import shutil; shutil.rmtree('C:/work')"`,
+    description: 'synthetic'
+  }
+}
 
 const SCENARIOS = {
   session: turn.map((name) => [name, A]),
@@ -60,6 +69,11 @@ const SCENARIOS = {
     ['UserPromptSubmit', A],
     [{ ...readFixture('PreToolUse.Bash'), ...risky, synthetic: true }, A],
     [{ ...readFixture('PermissionRequest.Bash'), ...risky, synthetic: true }, A],
+    ['Stop', A]
+  ],
+  explain: [
+    ['UserPromptSubmit', A],
+    [{ ...readFixture('PermissionRequest.Bash'), ...sneaky, synthetic: true }, A],
     ['Stop', A]
   ],
   error: [

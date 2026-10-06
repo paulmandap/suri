@@ -11,6 +11,8 @@ import type { ApprovalDecision, IslandSnapshot, SuriSettings } from '@shared/typ
 import { createGeminiProvider } from './ai/gemini'
 import { createOllamaProvider } from './ai/ollama'
 import type { AIProvider } from './ai/provider'
+import { createRiskExplainer } from './ai/risk'
+import { createAIRouter } from './ai/router'
 import { createApprovalBroker, safetyNetAnswer } from './approvals'
 import { createHookServer, type HookHandlerOptions, type HookServer } from './hook-server'
 import { claudeSettingsFile, createInstaller } from './installer'
@@ -52,13 +54,36 @@ async function start(): Promise<void> {
   let settingsWindow: BrowserWindow | null = null
   let tray: SuriTray | null = null
 
+  // The Gemini key, encrypted with Windows DPAPI. Only main ever reads it (ADR-015).
+  const secrets = createSecretStore(userData, {
+    available: () => safeStorage.isEncryptionAvailable(),
+    encrypt: (plain) => safeStorage.encryptString(plain),
+    decrypt: (data) => safeStorage.decryptString(data)
+  })
+  const providers: Record<ProviderId, AIProvider> = {
+    ollama: createOllamaProvider({ url: () => settings.ai.ollamaUrl }),
+    gemini: createGeminiProvider({ apiKey: () => secrets.get('geminiApiKey') })
+  }
+  // Every AI feature asks the router: it picks the model from Settings and
+  // takes these exact values (and pattern-matched secrets) out of cloud prompts.
+  const router = createAIRouter({
+    settings: () => settings.ai,
+    providers,
+    secrets: () => [settings.token, secrets.get('geminiApiKey') ?? '']
+  })
+  const riskExplainer = createRiskExplainer({
+    router,
+    log: (line) => console.warn(`[suri] ${line}`)
+  })
+
   const approvals = createApprovalBroker({
     // Answered on the island: clear the wait now instead of on Claude Code's next event.
     onSettled: (approval, outcome) => {
       if (outcome === 'allow' || outcome === 'deny') {
         sessions.answerPermission(approval.sessionId, outcome)
       }
-    }
+    },
+    explain: (input, signal) => riskExplainer.explain(input, signal)
   })
 
   const serverOptions = (port: number): HookHandlerOptions => ({
@@ -70,7 +95,7 @@ async function start(): Promise<void> {
       if (event.hook_event_name === 'PreToolUse' && settings.safetyNet) {
         // The safety net (ADR-007): high-risk commands must be asked about,
         // even when Paul's settings would let them run straight away.
-        const risk = assessRisk(event.tool_name, event.tool_input)
+        const risk = assessRisk(event.tool_name, event.tool_input, event.cwd)
         if (risk?.level === 'high') return safetyNetAnswer(risk)
       }
       if (event.hook_event_name === 'PermissionRequest') return approvals.request(event, signal)
@@ -92,18 +117,6 @@ async function start(): Promise<void> {
 
   // A dev build would register electron.exe itself, so only the installed app may.
   let openAtLogin = app.isPackaged && app.getLoginItemSettings().openAtLogin
-
-  // The Gemini key, encrypted with Windows DPAPI. Only main ever reads it (ADR-015).
-  const secrets = createSecretStore(userData, {
-    available: () => safeStorage.isEncryptionAvailable(),
-    encrypt: (plain) => safeStorage.encryptString(plain),
-    decrypt: (data) => safeStorage.decryptString(data)
-  })
-  // Phase 4b routes the AI features through these (router.ts); Settings tests them now.
-  const providers: Record<ProviderId, AIProvider> = {
-    ollama: createOllamaProvider({ url: () => settings.ai.ollamaUrl }),
-    gemini: createGeminiProvider({ apiKey: () => secrets.get('geminiApiKey') })
-  }
 
   const snapshot = (): IslandSnapshot => ({
     sessions: sessions.list(),
@@ -283,6 +296,8 @@ async function start(): Promise<void> {
     },
     updateAi: async (patch) => {
       change({ ai: applyAiPatch(settings.ai, patch) })
+      // Cached answers came from the old model.
+      riskExplainer.clear()
       return { ok: true }
     },
     testAi: (provider) => providers[provider].test(),

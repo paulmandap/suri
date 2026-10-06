@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   CARD_TTL_MS,
+  approvalLevel,
   cardKey,
   deriveIslandView,
   islandCardKey,
@@ -157,6 +158,25 @@ describe('held approvals', () => {
   it('gives every card a stable key', () => {
     expect(islandCardKey({ kind: 'approval', approval: approval('a9'), queued: 0 })).toBe(
       'approval:a9'
+    )
+  })
+
+  it("shows the rule's level at once, then the AI's combined level", () => {
+    const route = { provider: 'ollama' as const, model: 'qwen3.5:9b' }
+    const explained = {
+      level: 'high' as const,
+      modelLevel: 'high' as const,
+      summary: 'Publishes the package to npm.',
+      reasons: [],
+      reversible: false,
+      route
+    }
+    const rule = { level: 'medium' as const, rule: 'recursive-delete', reason: 'Deletes a folder.' }
+    expect(approvalLevel(approval('a1'))).toBeUndefined()
+    expect(approvalLevel({ ...approval('a1'), risk: rule })).toBe('medium')
+    expect(approvalLevel({ ...approval('a1'), risk: rule, explanation: explained })).toBe('high')
+    expect(approvalLevel({ ...approval('a1'), explanation: { ...explained, level: 'low' } })).toBe(
+      'low'
     )
   })
 })

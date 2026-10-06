@@ -20,7 +20,7 @@ export interface AiSettings {
 }
 
 export const FEATURES: readonly { id: Feature; label: string; built: boolean }[] = [
-  { id: 'risk', label: 'Risk explainer', built: false },
+  { id: 'risk', label: 'Risk explainer', built: true },
   { id: 'recap', label: 'Session recap', built: false },
   { id: 'fileQa', label: 'Questions about a file', built: false },
   { id: 'digest', label: 'Daily digest', built: false }

@@ -22,7 +22,8 @@
     "build:win": "npm run build && electron-builder --win",
     "spike:hooks": "node spike/hook-logger.mjs",
     "sandbox:hooks": "node scripts/sandbox-hooks.mjs",
-    "replay": "node scripts/replay-fixtures.mjs"
+    "replay": "node scripts/replay-fixtures.mjs",
+    "eval:risk": "node scripts/run-ts.mjs evals/run-risk-eval.ts"
   },
   "dependencies": {
     "@electron-toolkit/utils": "^4.0.0",

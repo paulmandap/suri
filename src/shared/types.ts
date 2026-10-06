@@ -1,7 +1,7 @@
 // Data shapes shared by the main process and the island renderer.
 // Plain data only (no Node or DOM types), so both sides can import it.
 
-import type { AiSettings } from './ai-config'
+import type { AiSettings, Route } from './ai-config'
 
 /** What kind of work an activity is; drives the verb and the icon. */
 export type ActivityKind =
@@ -89,7 +89,8 @@ export type HookServerStatus =
 /** Whether Claude Code's user settings send every session's events to Suri (ADR-013). */
 export type HookState = 'installed' | 'not-installed' | 'outdated' | 'unreadable'
 
-export type RiskLevel = 'medium' | 'high'
+/** Rules only ever say medium or high (no rule = no opinion); the AI may also say low. */
+export type RiskLevel = 'low' | 'medium' | 'high'
 
 export interface RiskFlag {
   level: RiskLevel
@@ -97,6 +98,24 @@ export interface RiskFlag {
   rule: string
   /** One plain-English sentence for the card. */
   reason: string
+}
+
+/** The AI risk explainer's answer for one approval (plan decision 7, ADR-016). */
+export interface RiskExplanation {
+  /** The higher of the rule and the model, so the AI can never lower a rule's level. */
+  level: RiskLevel
+  /** What the model alone said, before the rule floor. */
+  modelLevel: RiskLevel
+  /** One plain-English sentence: what this will do. */
+  summary: string
+  /** A few short reasons for the level. */
+  reasons: string[]
+  /** Whether the change can be undone. */
+  reversible: boolean
+  /** The model that answered. */
+  route: Route
+  /** Set when Gemini failed first and the local model answered instead. */
+  fellBackFrom?: { route: Route; reason: string }
 }
 
 /** `ask` = step aside and let Claude Code show its own prompt. */
@@ -112,6 +131,12 @@ export interface PendingApproval {
   /** The full command or path, so Paul sees exactly what will run. */
   detail: string
   risk?: RiskFlag
+  /** The AI risk check is still running. */
+  checkingRisk?: boolean
+  /** Filled in when the AI risk check answers. Missing if it failed: the rule still shows. */
+  explanation?: RiskExplanation
+  /** Why the AI risk check gave no explanation, e.g. Ollama isn't running. */
+  riskNote?: string
   createdAt: number
   /** When Suri gives up and lets Claude Code ask instead. */
   expiresAt: number
