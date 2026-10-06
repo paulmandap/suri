@@ -152,6 +152,8 @@ export interface IslandSnapshot {
   hookServer: HookServerStatus
   /** Suri's hooks in ~/.claude/settings.json. A project can still have its own (sandbox/). */
   hooks: HookState
+  /** Which sounds the island may play (sounds.ts). */
+  sounds: { needsYou: boolean; finished: boolean }
   sentAt: number
 }
 
@@ -164,6 +166,10 @@ export interface SuriSettings {
   hideFromCapture: boolean
   /** Force a prompt for high-risk commands even when they're allowed (ADR-007). */
   safetyNet: boolean
+  /** A chirp when Claude Code needs Paul: a held request or a wait. */
+  soundNeedsYou: boolean
+  /** A sound when a session finishes its turn or stops with an error. */
+  soundFinished: boolean
   /** Which model answers which AI feature (ADR-015). */
   ai: AiSettings
 }

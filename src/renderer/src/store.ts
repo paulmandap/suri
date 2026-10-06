@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { DecisionFeedback, IslandUiState } from '@shared/island-mode'
+import { pickFocus, type DecisionFeedback, type IslandUiState } from '@shared/island-mode'
 import type { IslandSnapshot } from '@shared/types'
 
 /** How long "Allowed / Denied" shows before the island moves on. */
@@ -20,7 +20,11 @@ let feedbackTimer: ReturnType<typeof setTimeout> | undefined
 export const useIsland = create<IslandStore>((set) => ({
   snapshot: null,
   ui: { hovering: false, pinnedOpen: false, dismissed: {} },
-  setSnapshot: (snapshot) => set({ snapshot }),
+  setSnapshot: (snapshot) =>
+    set((s) => {
+      const focus = pickFocus(s.ui.focus, snapshot.sessions, Date.now())
+      return { snapshot, ui: focus === s.ui.focus ? s.ui : { ...s.ui, focus } }
+    }),
   setHovering: (hovering) =>
     set((s) => (s.ui.hovering === hovering ? s : { ui: { ...s.ui, hovering } })),
   setPinnedOpen: (pinnedOpen) =>

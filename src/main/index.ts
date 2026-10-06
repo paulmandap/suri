@@ -124,6 +124,7 @@ async function start(): Promise<void> {
     paused: settings.paused,
     hookServer: server.status(),
     hooks: installer.status().inspection.state,
+    sounds: { needsYou: settings.soundNeedsYou, finished: settings.soundFinished },
     sentAt: Date.now()
   })
 
@@ -135,7 +136,9 @@ async function start(): Promise<void> {
         hideFromCapture: settings.hideFromCapture,
         safetyNet: settings.safetyNet,
         openAtLogin,
-        canOpenAtLogin: app.isPackaged
+        canOpenAtLogin: app.isPackaged,
+        soundNeedsYou: settings.soundNeedsYou,
+        soundFinished: settings.soundFinished
       },
       server: server.status(),
       hooks: { file, exists, url: hookUrl(settings.port), inspection, lastBackup },
@@ -245,6 +248,8 @@ async function start(): Promise<void> {
   const updateGeneral = async (patch: GeneralPatch): Promise<UpdateResult> => {
     if (patch.hideFromCapture !== undefined) setHideFromCapture(patch.hideFromCapture)
     if (patch.safetyNet !== undefined) change({ safetyNet: patch.safetyNet })
+    if (patch.soundNeedsYou !== undefined) change({ soundNeedsYou: patch.soundNeedsYou })
+    if (patch.soundFinished !== undefined) change({ soundFinished: patch.soundFinished })
     if (patch.openAtLogin !== undefined) setOpenAtLogin(patch.openAtLogin)
     if (patch.port !== undefined) return changePort(patch.port)
     return { ok: true }

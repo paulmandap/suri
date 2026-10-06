@@ -48,6 +48,17 @@ describe('loadSettings', () => {
     expect(onDisk()).toMatchObject({ port: DEFAULT_PORT, token, future: 1 })
   })
 
+  it('chirps when Claude needs Paul, and keeps turn-end sounds off, by default', () => {
+    expect(loadSettings(dir)).toMatchObject({ soundNeedsYou: true, soundFinished: false })
+    const token = 'e'.repeat(64)
+    writeFileSync(
+      settingsPath(dir),
+      JSON.stringify({ token, soundNeedsYou: 'loud', soundFinished: true }),
+      'utf8'
+    )
+    expect(loadSettings(dir)).toMatchObject({ token, soundNeedsYou: true, soundFinished: true })
+  })
+
   it('saves changes atomically and leaves no temp files behind', () => {
     const settings = loadSettings(dir)
     const paused = updateSettings(dir, settings, { paused: true })

@@ -1,5 +1,6 @@
 import { useEffect, useId, useState } from 'react'
 import {
+  DEFAULT_AI,
   DEFAULT_GEMINI_MODEL,
   FEATURES,
   isLoopbackUrl,
@@ -266,6 +267,12 @@ function RoutesSection({
 }): React.JSX.Element {
   const setRoute = (feature: Feature, route: Route): void =>
     void window.suriSettings.updateAi({ route: { feature, ...route } })
+  // Back to Ollama: the feature's own local default (the risk explainer's is
+  // smaller, ADR-017), or the fallback model for features that default to Gemini.
+  const localModel = (feature: Feature): string => {
+    const preset = DEFAULT_AI.routes[feature]
+    return preset.provider === 'ollama' ? preset.model : ai.settings.fallbackModel
+  }
 
   return (
     <Section title="Which model does what">
@@ -284,8 +291,7 @@ function RoutesSection({
                   onChange={(provider) =>
                     setRoute(id, {
                       provider,
-                      model:
-                        provider === 'gemini' ? DEFAULT_GEMINI_MODEL : ai.settings.fallbackModel
+                      model: provider === 'gemini' ? DEFAULT_GEMINI_MODEL : localModel(id)
                     })
                   }
                 />

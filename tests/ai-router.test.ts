@@ -63,7 +63,7 @@ describe('createAIRouter', () => {
     })
     expect(result).toMatchObject({
       value: { ok: true },
-      route: { provider: 'ollama', model: 'qwen3.5:9b' },
+      route: { provider: 'ollama', model: 'qwen2.5:7b-instruct' },
       redactions: 0
     })
     expect(ollama.sent[0]?.prompt).toBe(`token ${TOKEN}`)

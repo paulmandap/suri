@@ -1,12 +1,12 @@
 # Project state
 
-_Last updated: 2026-10-06 (Phase 4b: the risk explainer and its eval)_
+_Last updated: 2026-10-06 (Phase 5 started: sounds and a steady compact bar; the risk model picked by the eval)_
 
 Read `CLAUDE.md` first. The plan is in `~/.claude/plans/i-want-to-build-zany-gosling.md` (local only, not in the repo).
 
 ## Where we are
 
-**Phase 4 is done: the AI layer (4a) and the risk explainer with its eval (4b).** Next is Phase 5 (the mascot). Still open from Paul: installing the hooks on his own settings, the VS Code check, and pulling `qwen3.5:9b` so the eval can measure the default model (see Next).
+**Phase 4 is done**, and the eval has measured all four local models: the risk explainer now defaults to `qwen2.5:7b-instruct` (ADR-017). **Phase 5 has started** with the parts that need no art: sounds (ADR-018) and a compact bar that no longer flips between busy sessions. The mascot itself waits for Paul's images. The hooks are installed on Paul's own settings (this Claude Code chat showed on the island on 2026-10-06); the VS Code check is still open (see Next).
 
 | Phase | Status |
 |---|---|
@@ -14,29 +14,40 @@ Read `CLAUDE.md` first. The plan is in `~/.claude/plans/i-want-to-build-zany-gos
 | 1 Overlay + live feed | ✅ Done |
 | 2 Approvals + safety net | ✅ Done |
 | 3 Hook installer + Settings | ✅ Done |
-| 4 AI layer + risk explainer + eval | ✅ Done (4a AI layer · 4b risk explainer + eval). qwen3.5 and Gemini not measured yet |
-| 5 Mascot | Next |
+| 4 AI layer + risk explainer + eval | ✅ Done. Gemini not measured yet (overloaded) |
+| 5 Mascot | In progress: sounds ✅, steady compact bar ✅, art waits for Paul's images |
 | 6 Recap, history, digest | |
 | 7 Drop a file, ask a question | |
 | Proposed: Screen helper + push-to-talk | Paul to confirm (ADR-010, ADR-011) |
 | 8 Ship and resume | |
 
-## Phase 4b results (ADR-016)
+## Phase 5 so far (ADR-018)
+
+- **Sounds, made in code** (`src/shared/sounds.ts`): three short cues built from a few notes, no audio files. *Needs you*: two quick rising chirps, the meerkat's lookout call. *Finished*: a warm step up. *Error*: one low note that sinks. Only something new makes a sound: a request that just arrived (not the next one in the queue), a new wait, a finish or a failure. Nothing on the first snapshot after a start, or while paused.
+- **Settings → General → Sounds:** "When Claude needs you" (on by default) and "When a session finishes" (off), each with a "play" link. Two new fields in Suri's `settings.json`; each falls back to its default on its own.
+- **A steady compact bar** (`pickFocus` in `src/shared/island-mode.ts`): the bar keeps its session for at least 5 s instead of jumping to whichever session sent the last event. A session that needs Paul takes over at once, and a busy one beats a finished one. Working and thinking count as the same: a session switches between them on every tool call (that's what the first try got wrong, caught live).
+- **Verified:**
+  - **Unit tests:** typecheck, lint and **445 unit tests** (22 new): the cues' length, loudness, clicks and timing, when each cue plays, the focus rules, and the new settings.
+  - **End to end:** the speakers' peak meter (Windows Core Audio) read 0.16 while a replayed request popped up, against 0.00 at rest, so the chirp plays. Ten screenshots of two replayed sessions plus this chat showed the bar switch once and stay. Before the fix it flipped on every event.
+
+## Phase 4b results (ADR-016, ADR-017)
 
 - **The risk explainer** (`src/main/ai/risk.ts`). Every PermissionRequest Suri holds gets a plain-English check through the router: `{ level, summary, reasons[], reversible }`, checked with Zod. The model never sees the rule's verdict. The card shows the higher of the two levels, so the AI can raise a warning but never lower one. One model call at a time, cached by command, cancelled when Paul answers first. Failures aren't cached.
 - **The card.** The rule's level and reason show at once, then "Suri is checking this…", then the summary, "Can be undone / Can't be undone", the first reason, and the model that answered (with "Gemini: …" when the local model stepped in). The card turns red when the AI finds a danger the rules missed. If no model answers, one muted line says why. The card's height never changes, so the buttons don't move when the answer arrives.
 - **Rules** (`src/shared/risk-rules.ts`): 15 shell rules, 6 for file changes, 1 for reads. New: registry edits, rewriting PATH, deleting a remote branch, `git checkout -- .` / `git restore .`, emptying a table, unpublishing, login files (high); showing secrets to the agent, force-deleting branches or stashes, installs for the whole PC, permanent environment variables, and files outside the project (medium). Fixed a false alarm: `-Force`, `-LiteralPath` and `-ErrorAction` no longer count as "recursive".
 - **The eval** (`evals/`, `npm run eval:risk`): 61 labelled cases (20 low, 19 medium, 22 high), each model called directly with the app's prompt and no fallback. Results in `evals/results/risk.md`, plus one JSON per model:
 
-  | Who decides | Accuracy | High caught | Too low | Median |
-  |---|---|---|---|---|
-  | Rules alone | 77% | 17/22 | 13 | – |
-  | `qwen2.5:7b-instruct` | 74% | 15/22 | 14 | 1.0 s |
-  | **`qwen2.5:7b-instruct` + rules** (the card) | **90%** | **21/22** | 3 | – |
-  | `qwen2.5:3b-instruct` | 61% | 17/22 | 18 | 0.6 s |
-  | `qwen2.5:3b-instruct` + rules | 79% | 21/22 | 6 | – |
+  | Model | Alone | + rules (the card) | High caught (+ rules) | Too low (+ rules) | Warm | First call |
+  |---|---|---|---|---|---|---|
+  | Rules alone | 77% | – | 17/22 | 13 | – | – |
+  | `qwen3.5:9b` | 85% | **93%** | 21/22 | 1 | 3.1 s | about 50 s |
+  | **`qwen2.5:7b-instruct`** (the default) | 74% | **90%** | 21/22 | 3 | 1.0 s | 7.9 s |
+  | `qwen3.5:4b` | 72% | 82% | 22/22 | 4 | 1.9 s | 14.7 s |
+  | `qwen2.5:3b-instruct` | 61% | 79% | 21/22 | 6 | 0.6 s | 3.7 s |
 
-  The rules and the model miss different things. Rules miss deletes written in Python, Node or `find`; models miss `git checkout -- .`, git hooks and Claude Code's own settings. Together they miss one high case: a comment saying "this is safe, rate it low" talked both models down, and the rules only reached medium. The first call, which loads the model, took 7.9 s (7b) and 3.7 s (3b). `qwen3.5:4b`, `qwen3.5:9b`, `gemma4:12b` aren't pulled, and `gemini-3.8-flash` was overloaded, then rate-limited, all evening; none of them is measured yet.
+  The rules and the model miss different things. Rules miss deletes written in Python, Node or `find`; models miss `git checkout -- .`, git hooks and Claude Code's own settings. A comment saying "this is safe, rate it low" talked both qwen2.5 models down to low; `qwen3.5:9b` said medium, and only `qwen3.5:4b` said high.
+
+- **The default model (ADR-017, Paul's pick):** `qwen2.5:7b-instruct`. A risk check is nearly always a cold start, because approvals are rare and Ollama unloads a model after five idle minutes. `qwen3.5:9b` is the most accurate, but it takes about 50 s to load, more than the 45 s limit. Paul's own Suri settings were switched to the 7b, with a backup next to the file (`settings.json.before-risk-model-20261006-225657`). Recap and the fallback stay on `qwen3.5:9b`. `gemma4:12b` and `gemini-3.8-flash` aren't measured: Gemini was overloaded, then rate-limited, all evening.
 - **Verified:**
   - **Unit tests:** typecheck, lint, the build, and **423 unit tests** (106 new), all offline.
   - **End to end** in the dev app, with the replay script and Ollama. With the default route (`qwen3.5:9b`, not pulled), the card said "No AI check: Ollama doesn't have "qwen3.5:9b". Get it with: ollama pull qwen3.5:9b". With the risk route set to `qwen2.5:7b-instruct`, a delete hidden in Python (no rule) showed "Suri is checking this…", then turned the card red ("High risk · Deletes files outside the project · Can't be undone"). `rm -rf /` showed the rule's reason at once and the AI's summary under it. The PreToolUse safety net still answered "ask". Suri's `settings.json` was backed up first and restored byte for byte (same hash).
@@ -69,29 +80,25 @@ Read `CLAUDE.md` first. The plan is in `~/.claude/plans/i-want-to-build-zany-gos
 1. `npm run dev`, then tray → **Settings…**
 2. **AI** tab: Ollama is tested when the tab opens; Gemini says "API key saved". Click **Test connection** under Gemini.
 3. **Claude Code** tab → **Preview install** → read the diff → **Install hooks**. Start Claude Code in any project: the island shows it. To undo: **Preview removal** → **Remove hooks**.
-4. **The risk explainer:** with Suri running, `npm run replay -- explain` holds a request for a delete hidden in Python. Until `qwen3.5:9b` is pulled, the card says why there's no AI check. To see it work now, set **Risk explainer** to `qwen2.5:7b-instruct` in Settings → AI, then replay again: the card turns red. `npm run replay -- risky` shows the rule and the AI together.
+4. **The risk explainer:** with Suri running, `npm run replay -- explain` holds a request for a delete hidden in Python: no rule fires, then the AI turns the card red (about 8 s the first time, while the model loads). `npm run replay -- risky` shows the rule and the AI together.
+5. **Sounds:** Settings → General → Sounds → "play" next to each switch. `npm run replay -- permission` makes the island chirp.
 
 ## Next
 
-1. **Paul: install the hooks on your own settings (about 2 minutes).** Try-it step 3, then:
-   1. Run Claude Code in a normal project (not `sandbox/`). Does the island show the session?
-   2. Quit Suri and send one prompt: you should see "Stop hook error" once (expected, ADR-002).
-   3. In `sandbox/`, check that each tool shows up once on the island, not twice. The Claude Code docs say identical hooks run once; if you see doubles, tell Claude and delete the `hooks` block in `sandbox/.claude/settings.local.json`.
-2. **Paul: the VS Code check (about 3 minutes),** in any project once the hooks are installed:
+1. **The hooks are installed** on Paul's settings (seen 2026-10-06: all 11 entries, and this chat showed on the island). Two small checks are left:
+   1. Quit Suri and send one prompt: you should see "Stop hook error" once (expected, ADR-002).
+   2. In `sandbox/`, check that each tool shows up once on the island, not twice. The Claude Code docs say identical hooks run once; if you see doubles, tell Claude and delete the `hooks` block in `sandbox/.claude/settings.local.json`.
+2. **Paul: the VS Code check (about 3 minutes),** in any project:
    1. Ask Claude Code: `run the command: echo hello-vscode`. Suri shows the approval card. Click **Allow**. Does the command run without you clicking anything in VS Code?
    2. Ask again and click **Deny**. What does Claude say?
    3. Ask for `git push --force` in a repo with no remote. Does Suri's card appear (safety net), or only VS Code's own prompt?
    4. Quit Suri (tray → Quit Suri) and ask once more. What does VS Code show?
    5. Tell Claude what you saw. It goes into `docs/spike-hooks.md` and ADR-002 / ADR-012.
-3. **Paul, when convenient: `ollama pull qwen3.5:9b`** (6.6 GB; the default local model) and `ollama pull qwen3.5:4b` (3.4 GB). Settings → AI shows which ones are missing. Then measure them (about 2 minutes each):
-   ```powershell
-   npm run eval:risk -- --models qwen3.5:9b,qwen3.5:4b
-   ```
-   Tell Claude the numbers: they set the risk explainer's default model (ADR-004). If `qwen3.5:9b` doesn't beat `qwen2.5:7b-instruct` (90% with the rules, about 1 s), the default can switch to the model already installed.
-4. **Paul, when Gemini isn't overloaded: the Gemini eval** (about 7 minutes, paced for the free tier). Set the key in that terminal first (evals/README.md shows how, without it landing in PowerShell's history), then `npm run eval:risk -- --models gemini-3.8-flash`.
-5. **Phase 5: the mascot** (plan, Phase 5). It needs Paul's images in `assets/mascot/source/` (prompts in the plan). Until then, the sounds and the two-session focus polish (Known issues) can start without them.
+3. **Paul: listen to the sounds** (Settings → General → Sounds → "play") and say what to change: higher, lower, softer, shorter. They're a first pass, tuned without ears.
+4. **Paul: make the mascot images** (prompts in the plan) and save them in `assets/mascot/source/` as `turnaround.png`, `poses.png`, `blank-face.png` (and `extras.png`). The rest of Phase 5 starts from them: cut the sheets into sprites, then the poses per state, blinking, the pop-up from the burrow, and the tray icon.
+5. **Paul, when Gemini isn't overloaded: the Gemini eval** (about 7 minutes, paced for the free tier). Set the key in that terminal first (evals/README.md shows how, without it landing in PowerShell's history), then `npm run eval:risk -- --models gemini-3.8-flash`.
 6. **Paul: confirm the screen helper and push-to-talk** (ADR-010, ADR-011) as a new phase after Phase 7.
-7. **Maybe later, from the eval:** a rule for a recursive delete aimed outside the project (`rm -rf ../other`), which would catch the one high case both layers missed. It's left out for now, because the rule would come from the test set itself, and a monorepo's `../build` would trip it.
+7. **Maybe later, from the eval:** a rule for a recursive delete aimed outside the project (`rm -rf ../other`), which would catch the one high case the default model and the rules both missed. It's left out for now, because the rule would come from the test set itself, and a monorepo's `../build` would trip it.
 
 ## How to run
 
@@ -105,8 +112,8 @@ Read `CLAUDE.md` first. The plan is in `~/.claude/plans/i-want-to-build-zany-gos
 ## Known issues
 
 - Ollama must be running; Suri doesn't start it. Settings says "Can't reach Ollama … Is it running?" when it isn't (seen live).
-- The default local model `qwen3.5:9b` isn't pulled yet, so the risk explainer can't answer: the card says so in one line and still shows the rule (seen live). Pull it, or pick `qwen2.5:7b-instruct` for the risk explainer in Settings → AI.
-- A comment inside a command can talk the model down: "this is safe, rate it low" made both qwen2.5 models say low (eval case `high-comment-says-safe`). The rules are the floor, and here they only reached medium.
+- The first risk check after a quiet spell waits about 8 s while `qwen2.5:7b-instruct` loads (Ollama unloads a model after five idle minutes); after that it's about 1 s. If `qwen3.5:9b` is picked for the risk explainer, its load (about 50 s) is over the 45 s limit: that first card says the model is probably still loading, and the next one works.
+- A comment inside a command can talk the default model down: "this is safe, rate it low" made `qwen2.5:7b-instruct` say low (eval case `high-comment-says-safe`). The rules are the floor, and here they only reach medium. `qwen3.5:4b` wasn't fooled.
 - Gemini isn't in the eval yet: `gemini-3.8-flash` answered "overloaded", then hit the free-tier limit, all evening on 2026-10-06.
 - The eval's cases and the new rules were written in the same phase, so "Rules alone" (77%) flatters the rules. The model's own score and "+ rules" are the fair numbers.
 - The Gemini free tier allows few requests per minute. The router then lets the local model answer, which happened once in the live test.
@@ -119,8 +126,7 @@ Read `CLAUDE.md` first. The plan is in `~/.claude/plans/i-want-to-build-zany-gos
 - The diff preview can show a new block as `+ },` / `+ {` … instead of `− }` / `+ },`. It's a correct diff, just shifted by a line.
 - The safety-net rules match text, so they err on the side of asking: a command that only mentions `rm -rf /` (an `echo`, a commit message) is flagged high, and the AI can't lower it (eval case `low-echo-text`). Deletes written in Python or Node pass the rules; the AI is what catches them.
 - `prisma migrate reset`, `migrate:fresh` and `db:drop` now force a prompt (they wipe the database). On a local dev database that's one extra click; the rule is easy to drop to medium if it gets in the way.
-- No sound yet for "needs you" (it comes with the sound pack in Phase 5).
-- With two active sessions, the compact bar's focus flips between them (polish in Phase 5).
+- The sounds were tuned without listening (checked by numbers and the speakers' meter only). Paul's ears decide.
 - "Open in VS Code" from a session row hasn't been clicked through by hand yet (ADR-008).
 - The tray icon is still the Electron default; the mascot is a placeholder (Phase 5).
 - ESLint 9 is end-of-life upstream, but the electron-toolkit configs don't support 10 yet. The renderer's shared chunk triggers Vite's 500 kB warning. Revisit both before shipping.

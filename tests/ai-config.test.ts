@@ -76,7 +76,15 @@ describe('routing', () => {
   })
 
   it('tries a local route alone', () => {
-    expect(attemptsFor('risk', DEFAULT_AI)).toEqual([{ provider: 'ollama', model: 'qwen3.5:9b' }])
+    expect(attemptsFor('risk', DEFAULT_AI)).toEqual([
+      { provider: 'ollama', model: 'qwen2.5:7b-instruct' }
+    ])
+  })
+
+  it('explains risks with the model the eval picked, and keeps qwen3.5:9b for the rest (ADR-017)', () => {
+    expect(DEFAULT_AI.routes.risk.model).toBe('qwen2.5:7b-instruct')
+    expect(DEFAULT_AI.routes.recap.model).toBe('qwen3.5:9b')
+    expect(DEFAULT_AI.fallbackModel).toBe('qwen3.5:9b')
   })
 
   it('puts the local fallback model behind a Gemini route, never the other way', () => {

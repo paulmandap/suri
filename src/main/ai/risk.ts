@@ -3,6 +3,7 @@ import { shorten } from '@shared/activity'
 import type { AIErrorKind } from '@shared/ai-config'
 import { maxLevel } from '@shared/risk-rules'
 import type { RiskExplanation, RiskFlag } from '@shared/types'
+import { AIError } from './provider'
 import type { AIRouter, RoutedResult } from './router'
 
 // The risk explainer (plan decision 7, ADR-016). The rules give an instant
@@ -222,8 +223,15 @@ export function createRiskExplainer(opts: {
       return answer(input, cached)
     } catch (err) {
       // Not cached: Ollama may be running by the next request. AIError
-      // messages are written for people, so the card can show them.
-      const reason = err instanceof Error ? err.message : String(err)
+      // messages are written for people, so the card can show them. A time-out
+      // is nearly always a model still loading into memory, which goes on
+      // after Suri gives up, so the next check is quicker.
+      const reason =
+        err instanceof AIError && err.kind === 'timeout'
+          ? 'The model took too long, probably still loading. The next check is quicker.'
+          : err instanceof Error
+            ? err.message
+            : String(err)
       if (!signal?.aborted) opts.log?.(`risk check failed: ${reason}`)
       return { ok: false, reason }
     }

@@ -1,4 +1,4 @@
-import type { IslandSnapshot, PendingApproval, RiskLevel, Session } from './types'
+import type { IslandSnapshot, PendingApproval, RiskLevel, Session, SessionStatus } from './types'
 
 export type IslandMode = 'hidden' | 'peek' | 'compact' | 'expanded' | 'card'
 export type SessionCardKind = 'waiting' | 'error' | 'finished'
@@ -10,6 +10,12 @@ export interface DecisionFeedback {
   project: string
 }
 
+/** The session the compact bar talks about, and since when. */
+export interface Focus {
+  id: string
+  since: number
+}
+
 export interface IslandUiState {
   /** The pointer has rested over the island (or the top-centre hot zone). */
   hovering: boolean
@@ -18,6 +24,42 @@ export interface IslandUiState {
   /** Cards the user closed, by cardKey. */
   dismissed: Record<string, true>
   feedback?: DecisionFeedback
+  /** Kept by pickFocus, so the compact bar doesn't flip between busy sessions. */
+  focus?: Focus
+}
+
+/** How long the compact bar stays on one session before another busy one may take over. */
+export const FOCUS_DWELL_MS = 5_000
+
+/**
+ * Needs Paul, busy, stopped with an error, done. Working and thinking are
+ * one tier: a session switches between them on every tool call.
+ */
+function focusTier(status: SessionStatus): number {
+  if (status === 'waiting') return 0
+  if (status === 'working' || status === 'thinking') return 1
+  return status === 'error' ? 2 : 3
+}
+
+/**
+ * The session the compact bar talks about. Sessions arrive most relevant
+ * first, and with two busy ones the first place changes on every event, so
+ * the bar would flip back and forth. The current focus stays for
+ * FOCUS_DWELL_MS, unless it ends or another session is in a better tier:
+ * one that needs Paul takes over at once, and a busy one beats a finished one.
+ */
+export function pickFocus(
+  prev: Focus | undefined,
+  sessions: readonly Session[],
+  now: number
+): Focus | undefined {
+  const top = sessions[0]
+  if (!top) return undefined
+  const current = prev && sessions.find((s) => s.id === prev.id)
+  if (!prev || !current) return { id: top.id, since: now }
+  if (current.id === top.id) return prev
+  const better = focusTier(top.status) < focusTier(current.status)
+  return better || now - prev.since >= FOCUS_DWELL_MS ? { id: top.id, since: now } : prev
 }
 
 export type IslandCard =
@@ -80,7 +122,7 @@ export function deriveIslandView(
     return { mode: ui.pinnedOpen ? 'expanded' : 'peek' }
   }
 
-  const focus = sessions[0]
+  const focus = sessions.find((s) => s.id === ui.focus?.id) ?? sessions[0]
   if (ui.feedback) return { mode: 'card', card: { kind: 'feedback', feedback: ui.feedback }, focus }
 
   const [approval, ...queued] = snapshot.approvals

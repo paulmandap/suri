@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import type { GeneralView } from '@shared/settings-ipc'
+import type { SoundCue } from '@shared/sounds'
 import type { HookServerStatus, HookState } from '@shared/types'
+import { playCue } from '../lib/sound'
 import { Button, Card, Notice, Section, ToggleRow } from './ui'
 
 interface Props {
@@ -114,7 +116,52 @@ export function GeneralPane({ general, server, hooks, onShowHooks }: Props): Rea
           </div>
         </Card>
       </Section>
+
+      <Section title="Sounds">
+        <Card>
+          <div className="divide-y divide-white/[0.06]">
+            <ToggleRow
+              label="When Claude needs you"
+              hint={
+                <>
+                  A short chirp when a request waits for Allow or Deny. <Play cue="needs-you" />
+                </>
+              }
+              checked={general.soundNeedsYou}
+              onChange={(soundNeedsYou) =>
+                void window.suriSettings.updateGeneral({ soundNeedsYou })
+              }
+            />
+            <ToggleRow
+              label="When a session finishes"
+              hint={
+                <>
+                  A soft step up when Claude is done (<Play cue="finished" />
+                  ), a low note when it stops with an error (<Play cue="error" />
+                  ).
+                </>
+              }
+              checked={general.soundFinished}
+              onChange={(soundFinished) =>
+                void window.suriSettings.updateGeneral({ soundFinished })
+              }
+            />
+          </div>
+        </Card>
+      </Section>
     </div>
+  )
+}
+
+function Play({ cue }: { cue: SoundCue }): React.JSX.Element {
+  return (
+    <button
+      type="button"
+      onClick={() => playCue(cue)}
+      className="text-zinc-400 underline underline-offset-2 outline-none hover:text-zinc-200 focus-visible:ring-2 focus-visible:ring-teal-300/70"
+    >
+      play
+    </button>
   )
 }
 

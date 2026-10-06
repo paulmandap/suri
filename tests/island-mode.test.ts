@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
   CARD_TTL_MS,
+  FOCUS_DWELL_MS,
   approvalLevel,
   cardKey,
   deriveIslandView,
   islandCardKey,
+  pickFocus,
   type IslandUiState
 } from '@shared/island-mode'
 import type { IslandSnapshot, PendingApproval, Session } from '@shared/types'
@@ -34,6 +36,7 @@ function snapshot(sessions: Session[], extra: Partial<IslandSnapshot> = {}): Isl
     paused: false,
     hookServer: { state: 'listening', port: 47821 },
     hooks: 'installed',
+    sounds: { needsYou: true, finished: false },
     sentAt: NOW,
     ...extra
   }
@@ -178,5 +181,59 @@ describe('held approvals', () => {
     expect(approvalLevel({ ...approval('a1'), explanation: { ...explained, level: 'low' } })).toBe(
       'low'
     )
+  })
+})
+
+describe('pickFocus: the compact bar stays put between two busy sessions', () => {
+  const a = session({ id: 'a' })
+  const b = session({ id: 'b' })
+
+  it('starts on the most relevant session, and has none without sessions', () => {
+    expect(pickFocus(undefined, [a, b], NOW)).toEqual({ id: 'a', since: NOW })
+    expect(pickFocus({ id: 'a', since: 0 }, [], NOW)).toBeUndefined()
+  })
+
+  it('keeps its session while the other one moves ahead, until the dwell is over', () => {
+    const focus = { id: 'a', since: NOW }
+    expect(pickFocus(focus, [b, a], NOW + FOCUS_DWELL_MS - 1)).toBe(focus)
+    expect(pickFocus(focus, [b, a], NOW + FOCUS_DWELL_MS)).toEqual({
+      id: 'b',
+      since: NOW + FOCUS_DWELL_MS
+    })
+    expect(pickFocus(focus, [a, b], NOW + 60_000)).toBe(focus)
+  })
+
+  it("doesn't flip between working and thinking: both are busy (seen live)", () => {
+    const focus = { id: 'a', since: NOW }
+    const thinkingA = session({ id: 'a', status: 'thinking' })
+    const workingB = session({ id: 'b', status: 'working' })
+    expect(pickFocus(focus, [workingB, thinkingA], NOW + 10)).toBe(focus)
+  })
+
+  it('lets a session that needs Paul take over at once, and a busy one beat a finished one', () => {
+    const asking = session({ id: 'b', status: 'waiting' })
+    expect(pickFocus({ id: 'a', since: NOW }, [asking, a], NOW + 10)).toEqual({
+      id: 'b',
+      since: NOW + 10
+    })
+    const done = session({ id: 'a', status: 'done' })
+    expect(pickFocus({ id: 'a', since: NOW }, [b, done], NOW + 10)).toEqual({
+      id: 'b',
+      since: NOW + 10
+    })
+  })
+
+  it('moves on when its session ends', () => {
+    expect(pickFocus({ id: 'gone', since: NOW }, [b], NOW + 10)).toEqual({
+      id: 'b',
+      since: NOW + 10
+    })
+  })
+
+  it('is what the compact bar shows', () => {
+    const view = deriveIslandView(snapshot([b, a]), ui({ focus: { id: 'a', since: NOW } }), NOW)
+    expect(view).toMatchObject({ mode: 'compact', focus: { id: 'a' } })
+    const ended = deriveIslandView(snapshot([b]), ui({ focus: { id: 'a', since: NOW } }), NOW)
+    expect(ended.focus?.id).toBe('b')
   })
 })

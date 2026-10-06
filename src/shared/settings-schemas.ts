@@ -8,7 +8,9 @@ export const generalPatchSchema = z.strictObject({
   port: z.number().int().min(1024).max(65535).optional(),
   hideFromCapture: z.boolean().optional(),
   safetyNet: z.boolean().optional(),
-  openAtLogin: z.boolean().optional()
+  openAtLogin: z.boolean().optional(),
+  soundNeedsYou: z.boolean().optional(),
+  soundFinished: z.boolean().optional()
 })
 
 export type GeneralPatch = z.infer<typeof generalPatchSchema>

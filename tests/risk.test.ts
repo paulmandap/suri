@@ -278,6 +278,17 @@ describe('createRiskExplainer', () => {
     expect(sent).toHaveLength(2)
   })
 
+  it('explains a time-out as a model still loading', async () => {
+    const { router } = fakeRouter(
+      () => new AIError('timeout', 'The model took too long to answer.')
+    )
+    const outcome = await createRiskExplainer({ router }).explain(bash('npm test'))
+    expect(outcome).toEqual({
+      ok: false,
+      reason: 'The model took too long, probably still loading. The next check is quicker.'
+    })
+  })
+
   it('treats an empty answer as no explanation', async () => {
     const { router } = fakeRouter(() => ({ ...REPLY, summary: ' ' }))
     expect(await createRiskExplainer({ router }).explain(bash('npm test'))).toEqual({

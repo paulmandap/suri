@@ -196,3 +196,36 @@ Never rewrite an old decision. Supersede it with a new ADR and say why.
 - **The eval** (`evals/README.md`). `npm run eval:risk` sends 61 labelled cases to each model directly, with no fallback, so each score belongs to one model. It times every case and keeps the first (loading) call apart, and it spaces out Gemini calls for the free tier. Results are saved as one JSON per model plus a Markdown report, both committed. Vite's module runner runs the TypeScript, so no new dependency.
 
 **Consequences.** Explanations cost GPU time only when Paul is already being asked. Once qwen3.5 is pulled, the eval sets the default model (ADR-004). Known limits: the rules match text, so a command that only mentions `rm -rf /` (in an `echo` or a commit message) is flagged high, and the AI can't lower it. Deletions written in Python or Node slip past the rules and rely on the model.
+
+## ADR-017 — The risk explainer's default model: qwen2.5:7b-instruct
+**Date:** 2026-10-06 · **Status:** Accepted (Paul chose it from the eval). Supersedes ADR-004's default for the risk check only.
+
+**Context.** ADR-004 picked `qwen3.5:9b` for the risk check and left the final call to the Phase 4 eval. The eval (`evals/results/risk.md`, 61 cases) measured four local models:
+
+| Model | Alone | + rules | High caught (+ rules) | Too low (+ rules) | Warm | First call | Size |
+|---|---|---|---|---|---|---|---|
+| `qwen3.5:9b` | 85% | 93% | 21/22 | 1 | 3.1 s | about 50 s | 6.6 GB |
+| `qwen2.5:7b-instruct` | 74% | 90% | 21/22 | 3 | 1.0 s | 7.9 s | 4.7 GB |
+| `qwen3.5:4b` | 72% | 82% | 22/22 | 4 | 1.9 s | 14.7 s | 3.3 GB |
+| `qwen2.5:3b-instruct` | 61% | 79% | 21/22 | 6 | 0.6 s | 3.7 s | 1.9 GB |
+
+The deciding fact: a risk check is nearly always a cold start. Paul's settings let most tools run, so approvals are rare, and Ollama unloads a model five minutes after its last use. `qwen3.5:9b` takes about 50 s to load, more than the 45 s limit, so the first explanation after a quiet spell would never arrive.
+
+**Options.** `qwen2.5:7b-instruct`: the best balance and the quickest from cold. `qwen3.5:4b`: the only model not talked down by "this is safe, rate it low", and it caught all 22 high-risk cases, but it rated 7 cases too high. `qwen3.5:9b`, kept loaded while Claude Code runs: the most accurate, but it holds 6.6 GB of the 8 GB GPU.
+
+**Decision.** The risk explainer defaults to `qwen2.5:7b-instruct`. Recap and the fallback model stay on `qwen3.5:9b` until their own evals (Phase 6). A time-out on the card now says the model is probably still loading, since loading carries on after Suri gives up.
+
+**Consequences.** An explanation arrives in about 8 s after a quiet spell and in about 1 s when warm, and the model only takes VRAM while it's loaded. The 7b can be talked down by a comment inside a command; the rules stay the floor. Paul's own settings were switched to the new default, with a backup next to the file; Settings → AI changes it back in one click. Gemini isn't measured yet: it was overloaded on 2026-10-06.
+
+## ADR-018 — Sounds are made in code
+**Date:** 2026-10-06 · **Status:** Accepted
+
+**Context.** The plan wants a sound when Claude needs Paul (Phase 2, moved to Phase 5) and suggested CC0 packs or jsfxr.
+
+**Decision.**
+
+- Three cues built from a few notes in `src/shared/sounds.ts`, as pure math. **Needs you**: two quick rising chirps, the meerkat's lookout call. **Finished**: a warm step up. **Error**: one low note that sinks. Each stays below half scale and fades in and out, so nothing clicks. The renderer plays the samples through Web Audio; if anything fails, Suri stays quiet.
+- `soundFor(previous, next)` decides from two snapshots. Only something new makes a sound: a request that just arrived (not the next one in the queue), a new wait, a finish or a failure. Never on the first snapshot after a start, and never while paused.
+- Settings → General has **When Claude needs you** (on by default) and **When a session finishes** (off), each with a "play" link.
+
+**Consequences.** No audio files, licences or downloads, and the tests check length, loudness, clicks and timing without speakers. Verified live by reading the speakers' peak meter: 0.16 during a replayed request, 0.00 at rest. The sounds are a first pass for Paul to tune by ear.

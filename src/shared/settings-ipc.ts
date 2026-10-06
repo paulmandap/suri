@@ -38,6 +38,8 @@ export interface GeneralView {
   openAtLogin: boolean
   /** Only the installed app can start with Windows; a dev build would register electron.exe. */
   canOpenAtLogin: boolean
+  soundNeedsYou: boolean
+  soundFinished: boolean
 }
 
 export interface HooksView {
