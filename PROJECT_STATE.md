@@ -94,8 +94,8 @@ Read `CLAUDE.md` first. The plan is in `~/.claude/plans/i-want-to-build-zany-gos
    3. Ask for `git push --force` in a repo with no remote. Does Suri's card appear (safety net), or only VS Code's own prompt?
    4. Quit Suri (tray → Quit Suri) and ask once more. What does VS Code show?
    5. Tell Claude what you saw. It goes into `docs/spike-hooks.md` and ADR-002 / ADR-012.
-3. **Paul: listen to the sounds** (Settings → General → Sounds → "play") and say what to change: higher, lower, softer, shorter. They're a first pass, tuned without ears.
-4. **Paul: make the mascot images** (prompts in the plan) and save them in `assets/mascot/source/` as `turnaround.png`, `poses.png`, `blank-face.png` (and `extras.png`). The rest of Phase 5 starts from them: cut the sheets into sprites, then the poses per state, blinking, the pop-up from the burrow, and the tray icon.
+3. **Paul: make the mascot images.** `assets/mascot/source/README.md` has the four prompts, ready to copy, and the file names: `turnaround.png`, `poses.png`, `blank-face.png` (and `extras.png`). The rest of Phase 5 starts from them: cut the sheets into sprites, then the poses per state, blinking, the pop-up from the burrow, and the tray icon.
+4. ~~Listen to the sounds~~: Paul is fine with them as they are (2026-10-06).
 5. **Paul, when Gemini isn't overloaded: the Gemini eval** (about 7 minutes, paced for the free tier). Set the key in that terminal first (evals/README.md shows how, without it landing in PowerShell's history), then `npm run eval:risk -- --models gemini-3.8-flash`.
 6. **Paul: confirm the screen helper and push-to-talk** (ADR-010, ADR-011) as a new phase after Phase 7.
 7. **Maybe later, from the eval:** a rule for a recursive delete aimed outside the project (`rm -rf ../other`), which would catch the one high case the default model and the rules both missed. It's left out for now, because the rule would come from the test set itself, and a monorepo's `../build` would trip it.
@@ -126,7 +126,6 @@ Read `CLAUDE.md` first. The plan is in `~/.claude/plans/i-want-to-build-zany-gos
 - The diff preview can show a new block as `+ },` / `+ {` … instead of `− }` / `+ },`. It's a correct diff, just shifted by a line.
 - The safety-net rules match text, so they err on the side of asking: a command that only mentions `rm -rf /` (an `echo`, a commit message) is flagged high, and the AI can't lower it (eval case `low-echo-text`). Deletes written in Python or Node pass the rules; the AI is what catches them.
 - `prisma migrate reset`, `migrate:fresh` and `db:drop` now force a prompt (they wipe the database). On a local dev database that's one extra click; the rule is easy to drop to medium if it gets in the way.
-- The sounds were tuned without listening (checked by numbers and the speakers' meter only). Paul's ears decide.
 - "Open in VS Code" from a session row hasn't been clicked through by hand yet (ADR-008).
 - The tray icon is still the Electron default; the mascot is a placeholder (Phase 5).
 - ESLint 9 is end-of-life upstream, but the electron-toolkit configs don't support 10 yet. The renderer's shared chunk triggers Vite's 500 kB warning. Revisit both before shipping.
