@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import type { SettingsView } from '@shared/settings-ipc'
 import { PlaceholderMascot } from '../mascot/PlaceholderMascot'
+import { AiPane } from './AiPane'
 import { ClaudeCodePane } from './ClaudeCodePane'
 import { GeneralPane } from './GeneralPane'
-import { Card, Section } from './ui'
 
 type Tab = 'claude' | 'general' | 'ai'
 
@@ -82,24 +82,10 @@ export function SettingsApp(): React.JSX.Element {
               onShowHooks={() => setTab('claude')}
             />
           ) : (
-            <AiPane />
+            <AiPane ai={view.ai} />
           )}
         </main>
       </div>
     </div>
-  )
-}
-
-function AiPane(): React.JSX.Element {
-  return (
-    <Section title="AI">
-      <Card>
-        <div className="text-[14px] font-semibold text-zinc-100">Coming soon</div>
-        <p className="mt-1.5 text-[12.5px] leading-relaxed text-zinc-400">
-          Choose a local model (Ollama) or Gemini for each feature, test the connection, and keep a
-          Gemini key in Windows&apos; protected storage.
-        </p>
-      </Card>
-    </Section>
   )
 }

@@ -1,6 +1,7 @@
 import { BrowserWindow, ipcMain, type WebContents } from 'electron'
 import { join } from 'node:path'
 import { is } from '@electron-toolkit/utils'
+import type { AiPatch, ConnectionTest, ProviderId } from '@shared/ai-config'
 import type { HookAction } from '@shared/hook-config'
 import {
   SETTINGS_IPC,
@@ -11,9 +12,12 @@ import {
   type UpdateResult
 } from '@shared/settings-ipc'
 import {
+  aiPatchSchema,
   generalPatchSchema,
+  geminiKeySchema,
   hookActionSchema,
   previewIdSchema,
+  providerSchema,
   revealTargetSchema,
   type GeneralPatch
 } from '@shared/settings-schemas'
@@ -76,6 +80,10 @@ export interface SettingsHandlers {
   previewHooks(action: HookAction): Promise<PreviewResult>
   applyHooks(previewId: string): Promise<ApplyHooksResult>
   reveal(target: RevealTarget): Promise<boolean>
+  updateAi(patch: AiPatch): Promise<UpdateResult>
+  testAi(provider: ProviderId): Promise<ConnectionTest>
+  saveGeminiKey(key: string): Promise<UpdateResult>
+  removeGeminiKey(): Promise<UpdateResult>
 }
 
 /** Main checks who sent each message and what is in it; the page is never trusted. */
@@ -110,5 +118,35 @@ export function registerSettingsIpc(h: SettingsHandlers): void {
     const parsed = revealTargetSchema.safeParse(target)
     if (!h.isSettings(event.sender) || !parsed.success) return Promise.resolve(false)
     return h.reveal(parsed.data)
+  })
+
+  ipcMain.handle(SETTINGS_IPC.updateAi, (event, patch: unknown): Promise<UpdateResult> => {
+    const parsed = aiPatchSchema.safeParse(patch)
+    if (!h.isSettings(event.sender) || !parsed.success) {
+      return Promise.resolve({ ok: false, message: 'That AI setting is not valid.' })
+    }
+    return h.updateAi(parsed.data)
+  })
+
+  ipcMain.handle(SETTINGS_IPC.testAi, (event, provider: unknown): Promise<ConnectionTest> => {
+    const parsed = providerSchema.safeParse(provider)
+    if (!h.isSettings(event.sender) || !parsed.success) {
+      return Promise.resolve({ ok: false, kind: 'other', message: 'Unknown provider.' })
+    }
+    return h.testAi(parsed.data)
+  })
+
+  ipcMain.handle(SETTINGS_IPC.saveGeminiKey, (event, key: unknown): Promise<UpdateResult> => {
+    const parsed = geminiKeySchema.safeParse(key)
+    if (!h.isSettings(event.sender)) return Promise.resolve({ ok: false, message: 'Not allowed.' })
+    if (!parsed.success) {
+      return Promise.resolve({ ok: false, message: "That doesn't look like an API key." })
+    }
+    return h.saveGeminiKey(parsed.data)
+  })
+
+  ipcMain.handle(SETTINGS_IPC.removeGeminiKey, (event): Promise<UpdateResult> => {
+    if (!h.isSettings(event.sender)) return Promise.resolve({ ok: false, message: 'Not allowed.' })
+    return h.removeGeminiKey()
   })
 }

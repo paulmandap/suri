@@ -1,18 +1,23 @@
-import { app, ipcMain, shell, type BrowserWindow } from 'electron'
+import { app, ipcMain, safeStorage, shell, type BrowserWindow } from 'electron'
 import { dirname, join } from 'node:path'
 import { electronApp } from '@electron-toolkit/utils'
+import { applyAiPatch, type ProviderId } from '@shared/ai-config'
 import { hookUrl } from '@shared/hook-config'
 import { IPC } from '@shared/ipc'
 import { assessRisk } from '@shared/risk-rules'
 import { SETTINGS_IPC, type SettingsView, type UpdateResult } from '@shared/settings-ipc'
 import type { GeneralPatch } from '@shared/settings-schemas'
 import type { ApprovalDecision, IslandSnapshot, SuriSettings } from '@shared/types'
+import { createGeminiProvider } from './ai/gemini'
+import { createOllamaProvider } from './ai/ollama'
+import type { AIProvider } from './ai/provider'
 import { createApprovalBroker, safetyNetAnswer } from './approvals'
 import { createHookServer, type HookHandlerOptions, type HookServer } from './hook-server'
 import { claudeSettingsFile, createInstaller } from './installer'
 import { openProjectFolder } from './open-project'
 import { applyContentProtection, createOverlayWindow, setOverlayInteractive } from './overlay'
 import { createSessionsStore } from './sessions-store'
+import { createSecretStore } from './secrets'
 import { loadSettings, updateSettings } from './settings'
 import { createSettingsWindow, registerSettingsIpc } from './settings-window'
 import { createTray, type SuriTray } from './tray'
@@ -88,6 +93,18 @@ async function start(): Promise<void> {
   // A dev build would register electron.exe itself, so only the installed app may.
   let openAtLogin = app.isPackaged && app.getLoginItemSettings().openAtLogin
 
+  // The Gemini key, encrypted with Windows DPAPI. Only main ever reads it (ADR-015).
+  const secrets = createSecretStore(userData, {
+    available: () => safeStorage.isEncryptionAvailable(),
+    encrypt: (plain) => safeStorage.encryptString(plain),
+    decrypt: (data) => safeStorage.decryptString(data)
+  })
+  // Phase 4b routes the AI features through these (router.ts); Settings tests them now.
+  const providers: Record<ProviderId, AIProvider> = {
+    ollama: createOllamaProvider({ url: () => settings.ai.ollamaUrl }),
+    gemini: createGeminiProvider({ apiKey: () => secrets.get('geminiApiKey') })
+  }
+
   const snapshot = (): IslandSnapshot => ({
     sessions: sessions.list(),
     approvals: approvals.list(),
@@ -108,7 +125,12 @@ async function start(): Promise<void> {
         canOpenAtLogin: app.isPackaged
       },
       server: server.status(),
-      hooks: { file, exists, url: hookUrl(settings.port), inspection, lastBackup }
+      hooks: { file, exists, url: hookUrl(settings.port), inspection, lastBackup },
+      ai: {
+        settings: settings.ai,
+        geminiKey: secrets.has('geminiApiKey') ? 'saved' : 'missing',
+        secureStorage: secrets.available()
+      }
     }
   }
 
@@ -258,6 +280,25 @@ async function start(): Promise<void> {
         return true
       }
       return (await shell.openPath(dirname(file))) === ''
+    },
+    updateAi: async (patch) => {
+      change({ ai: applyAiPatch(settings.ai, patch) })
+      return { ok: true }
+    },
+    testAi: (provider) => providers[provider].test(),
+    saveGeminiKey: async (key) => {
+      try {
+        secrets.set('geminiApiKey', key)
+      } catch (err) {
+        return { ok: false, message: err instanceof Error ? err.message : String(err) }
+      }
+      push()
+      return { ok: true }
+    },
+    removeGeminiKey: async () => {
+      secrets.remove('geminiApiKey')
+      push()
+      return { ok: true }
     }
   })
 

@@ -4,7 +4,7 @@
 
 Suri lives in a small Dynamic Island–style bar at the top of your screen. It shows what Claude Code is doing, lets you allow or deny permission requests with one click, explains risky commands in plain English, and sums up each session, using local models (Ollama) or Gemini.
 
-> **Status:** early development (Phase 3 of 8). Live Claude Code activity, one-click approvals, a safety net for risky commands, and a Settings window that installs Suri's hooks into Claude Code with a diff preview and a backup. The AI features come next.
+> **Status:** early development (Phase 4 of 8). Live Claude Code activity, one-click approvals, a safety net for risky commands, and a Settings window that installs Suri's hooks into Claude Code with a diff preview and a backup. The AI layer is in place: local models through Ollama, Gemini as an option, with secrets removed before anything goes to the cloud. The AI features themselves come next.
 
 ## Development
 

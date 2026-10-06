@@ -31,7 +31,12 @@ const api: SuriSettingsApi = {
     }
     return ipcRenderer.invoke(SETTINGS_IPC.applyHooks, String(previewId))
   },
-  reveal: (target) => ipcRenderer.invoke(SETTINGS_IPC.reveal, String(target))
+  reveal: (target) => ipcRenderer.invoke(SETTINGS_IPC.reveal, String(target)),
+  updateAi: (patch) => ipcRenderer.invoke(SETTINGS_IPC.updateAi, patch),
+  testAi: (provider) => ipcRenderer.invoke(SETTINGS_IPC.testAi, String(provider)),
+  // One way only: the key goes to main to be encrypted and never comes back.
+  saveGeminiKey: (key) => ipcRenderer.invoke(SETTINGS_IPC.saveGeminiKey, String(key)),
+  removeGeminiKey: () => ipcRenderer.invoke(SETTINGS_IPC.removeGeminiKey)
 }
 
 contextBridge.exposeInMainWorld('suriSettings', api)

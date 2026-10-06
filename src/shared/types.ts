@@ -1,6 +1,8 @@
 // Data shapes shared by the main process and the island renderer.
 // Plain data only (no Node or DOM types), so both sides can import it.
 
+import type { AiSettings } from './ai-config'
+
 /** What kind of work an activity is; drives the verb and the icon. */
 export type ActivityKind =
   'read' | 'edit' | 'write' | 'shell' | 'search' | 'web' | 'agent' | 'plan' | 'other'
@@ -137,4 +139,6 @@ export interface SuriSettings {
   hideFromCapture: boolean
   /** Force a prompt for high-risk commands even when they're allowed (ADR-007). */
   safetyNet: boolean
+  /** Which model answers which AI feature (ADR-015). */
+  ai: AiSettings
 }

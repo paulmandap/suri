@@ -2,6 +2,7 @@ import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'n
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { DEFAULT_AI } from '@shared/ai-config'
 import { DEFAULT_PORT, loadSettings, settingsPath, updateSettings } from '../src/main/settings'
 
 let dir: string
@@ -53,6 +54,50 @@ describe('loadSettings', () => {
     expect(paused).toEqual({ ...settings, paused: true })
     expect(onDisk()).toMatchObject({ paused: true, token: settings.token })
     expect(readdirSync(dir)).toEqual(['settings.json'])
+  })
+})
+
+describe('AI settings', () => {
+  it('start from the defaults (ADR-004)', () => {
+    expect(loadSettings(dir).ai).toEqual(DEFAULT_AI)
+    expect(onDisk().ai).toEqual(DEFAULT_AI)
+  })
+
+  it('fall back one field at a time', () => {
+    const token = 'e'.repeat(64)
+    writeFileSync(
+      settingsPath(dir),
+      JSON.stringify({
+        token,
+        ai: {
+          ollamaUrl: 'http://evil.example:11434',
+          fallbackModel: 'llama3',
+          routes: {
+            risk: { provider: 'gemini', model: 'models/not:valid' },
+            digest: { provider: 'ollama', model: 'llama3' }
+          }
+        }
+      }),
+      'utf8'
+    )
+    const { ai } = loadSettings(dir)
+    expect(ai).toEqual({
+      ollamaUrl: DEFAULT_AI.ollamaUrl,
+      fallbackModel: 'llama3',
+      routes: { ...DEFAULT_AI.routes, digest: { provider: 'ollama', model: 'llama3' } }
+    })
+    expect(onDisk()).toMatchObject({ token, ai })
+  })
+
+  it('keep a changed setup across a restart', () => {
+    const settings = loadSettings(dir)
+    const ai = {
+      ...DEFAULT_AI,
+      ollamaUrl: 'http://localhost:11500',
+      routes: { ...DEFAULT_AI.routes, fileQa: { provider: 'ollama' as const, model: 'llama3' } }
+    }
+    updateSettings(dir, settings, { ai })
+    expect(loadSettings(dir).ai).toEqual(ai)
   })
 })
 

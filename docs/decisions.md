@@ -163,3 +163,20 @@ Never rewrite an old decision. Supersede it with a new ADR and say why.
 - "Start with Windows" only works in the installed app; a dev build would register electron.exe itself.
 
 **Consequences.** Least privilege per window. The two renderer pages share one JS chunk (React and motion).
+
+## ADR-015 — The AI layer: one interface, local first, redaction at the door
+**Date:** 2026-10-05 · **Status:** Accepted
+
+**Context.** Phase 4 builds the AI layer that the risk explainer (4b), recaps and the digest (Phase 6) and file questions (Phase 7) will use. ADR-004 chose Ollama and Gemini; this records how they are wired.
+
+**Decision.**
+- **One interface.** `AIProvider` (`src/main/ai/provider.ts`) has `generateJSON` (the reply must match a Zod schema, sent to the model as JSON Schema), `streamText`, `listModels` and `test`. Every failure becomes an `AIError` with one kind: offline, rate-limit, auth, no-key, not-found, timeout, aborted, bad-output, unavailable or other.
+- **Ollama** is called over its HTTP API with plain `fetch`: `think: false` (fast, and accepted by models that can't think), temperature 0, the schema in `format`. Its address must be on this PC (a loopback URL), because "local" is the privacy promise and redaction only guards the cloud path.
+- **Gemini** uses the official `@google/genai` SDK (2.27), with `responseJsonSchema` for structured output. SDK retries stay off, so a 429 comes back at once and the router can fall back. The host and API are pinned in code (`generativelanguage.googleapis.com`, `vertexai: false`): otherwise `GOOGLE_GEMINI_BASE_URL` or `GOOGLE_GENAI_USE_VERTEXAI` in the environment could send the key and prompts somewhere else. With an API key the SDK never starts Google's cloud auth library, so no other Google service is contacted.
+- **A router picks the model per feature** from Settings. A Gemini route has the local fallback model behind it, and any Gemini failure except a cancel falls back to it. A local route never falls back to the cloud. A stream doesn't fall back once text has been shown.
+- **Redaction lives in the router,** right before a cloud call, so no feature can forget it. It removes Suri's hook token and the Gemini key by exact value, plus pattern-matched secrets: private keys, passwords in URLs, the whole credential after `Authorization:` (any scheme, any case), well-known token shapes (including Google's newer `AQ.` keys), and secret-named values in JSON (strings and numbers), .env and YAML. It errs on the side of removing too much, and a second pass finds nothing new.
+- **The Gemini key** is kept with Electron `safeStorage` (Windows DPAPI) in `%APPDATA%\Suri\secrets.json`, as base64 of the encrypted bytes, written atomically. Without encryption it isn't saved at all. The Settings page can save or remove the key and see whether one is saved; main never sends it back.
+- **Defaults** follow ADR-004: risk and recap on `qwen3.5:9b`, file questions and the digest on `gemini-3.8-flash` (free on the free tier, checked 2026-10-05), with `qwen3.5:9b` as the fallback. The Phase 4 eval sets the final defaults.
+- Model names are checked before use. Gemini ids may only hold lowercase letters, digits, dots and dashes, because they end up in a URL path.
+
+**Consequences.** Features ask for "risk" or "recap", not for a model, so models can change without touching them. Unit tests use fake providers and fake servers on 127.0.0.1; live models only run in `evals/`. On the free tier Google may use what Suri sends, which Settings says next to the key. If the default local model isn't pulled yet, Settings shows the `ollama pull` command.

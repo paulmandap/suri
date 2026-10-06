@@ -77,6 +77,8 @@ Then give copy-paste PowerShell blocks: `cd C:\paul\ai_tool_no-name-yet`, `git a
 
 Paul is building this to learn and to show on a resume. Explain the one decision worth understanding, briefly, in short and simple English. Prefer steps over long reasoning. Inspect before editing, plan meaningful changes, then build and test.
 
+Do the work and the reviews inline. Run a Workflow or subagents only when Paul asks for one by name: fan-outs have used up his Pro limits without returning anything.
+
 ## Commands
 
 ```powershell

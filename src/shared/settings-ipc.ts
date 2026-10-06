@@ -1,3 +1,4 @@
+import type { AiPatch, AiSettings, ConnectionTest, ProviderId } from './ai-config'
 import type { HookAction, HookInspection } from './hook-config'
 import type { DiffLine } from './line-diff'
 import type { GeneralPatch } from './settings-schemas'
@@ -19,7 +20,15 @@ export const SETTINGS_IPC = {
   /** renderer → main (invoke): write the previewed change. Only a click can send it. */
   applyHooks: 'suri:settings-apply-hooks',
   /** renderer → main (invoke): show settings.json or the newest backup in Explorer. */
-  reveal: 'suri:settings-reveal'
+  reveal: 'suri:settings-reveal',
+  /** renderer → main (invoke): change the AI settings (Ollama address, models per feature). */
+  updateAi: 'suri:settings-update-ai',
+  /** renderer → main (invoke): "Test connection" for Ollama or Gemini. */
+  testAi: 'suri:settings-test-ai',
+  /** renderer → main (invoke): save the Gemini key, encrypted. It never comes back. */
+  saveGeminiKey: 'suri:settings-save-gemini-key',
+  /** renderer → main (invoke): delete the saved Gemini key. */
+  removeGeminiKey: 'suri:settings-remove-gemini-key'
 } as const
 
 export interface GeneralView {
@@ -42,10 +51,19 @@ export interface HooksView {
   lastBackup: string | null
 }
 
+export interface AiView {
+  settings: AiSettings
+  /** Whether a Gemini key is saved. The key itself never reaches the page. */
+  geminiKey: 'saved' | 'missing'
+  /** Windows can encrypt secrets (DPAPI); without it Suri won't save a key. */
+  secureStorage: boolean
+}
+
 export interface SettingsView {
   general: GeneralView
   server: HookServerStatus
   hooks: HooksView
+  ai: AiView
 }
 
 export type UpdateResult = { ok: true } | { ok: false; message: string }
@@ -88,4 +106,8 @@ export interface SuriSettingsApi {
   previewHooks(action: HookAction): Promise<PreviewResult>
   applyHooks(previewId: string): Promise<ApplyHooksResult>
   reveal(target: RevealTarget): Promise<boolean>
+  updateAi(patch: AiPatch): Promise<UpdateResult>
+  testAi(provider: ProviderId): Promise<ConnectionTest>
+  saveGeminiKey(key: string): Promise<UpdateResult>
+  removeGeminiKey(): Promise<UpdateResult>
 }

@@ -26,6 +26,7 @@
   },
   "dependencies": {
     "@electron-toolkit/utils": "^4.0.0",
+    "@google/genai": "^2.27.0",
     "zod": "^4.6.5"
   },
   "devDependencies": {
