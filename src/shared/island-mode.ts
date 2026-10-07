@@ -64,6 +64,16 @@ export function pickFocus(
   return better || now - prev.since >= FOCUS_DWELL_MS ? { id: top.id, since: now } : prev
 }
 
+/**
+ * The island's own state when a full-screen game takes over (ADR-029): no
+ * hover or pin left over to pop it open later, and the file panel closes
+ * (main closes its side too).
+ */
+export function quietUi(ui: IslandUiState): IslandUiState {
+  if (!ui.hovering && !ui.pinnedOpen && !ui.askOpen) return ui
+  return { ...ui, hovering: false, pinnedOpen: false, askOpen: false }
+}
+
 export type IslandCard =
   | { kind: 'approval'; approval: PendingApproval; queued: number }
   | { kind: 'feedback'; feedback: DecisionFeedback }
@@ -116,6 +126,9 @@ export function deriveIslandView(
   now: number
 ): IslandView {
   if (!snapshot) return { mode: 'hidden' }
+  // A full-screen game is in front (ADR-029): nothing shows, not even a card,
+  // so the card mounts (and its click guard starts) only once Paul can see it.
+  if (snapshot.quiet) return { mode: 'hidden' }
   // A request waiting for Allow or Deny beats the file panel; it comes back after.
   if (ui.askOpen && !ui.feedback && snapshot.approvals.length === 0) {
     return { mode: 'ask', focus: snapshot.sessions.find((s) => s.id === ui.focus?.id) }

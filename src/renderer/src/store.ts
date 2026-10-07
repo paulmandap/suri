@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { AskEvent, DocumentInfo } from '@shared/file-qa'
-import { pickFocus, type DecisionFeedback, type IslandUiState } from '@shared/island-mode'
+import { pickFocus, quietUi, type DecisionFeedback, type IslandUiState } from '@shared/island-mode'
 import type { IslandSnapshot } from '@shared/types'
 
 /** How long "Allowed / Denied" shows before the island moves on. */
@@ -67,7 +67,10 @@ export const useIsland = create<IslandStore>((set) => ({
   setSnapshot: (snapshot) =>
     set((s) => {
       const focus = pickFocus(s.ui.focus, snapshot.sessions, Date.now())
-      return { snapshot, ui: focus === s.ui.focus ? s.ui : { ...s.ui, focus } }
+      const ui = focus === s.ui.focus ? s.ui : { ...s.ui, focus }
+      // A full-screen game just came to the front (ADR-029).
+      if (snapshot.quiet && !s.snapshot?.quiet) return { snapshot, ui: quietUi(ui), ask: NO_ASK }
+      return { snapshot, ui }
     }),
   setHovering: (hovering) =>
     set((s) => (s.ui.hovering === hovering ? s : { ui: { ...s.ui, hovering } })),

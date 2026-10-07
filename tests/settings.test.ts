@@ -69,6 +69,16 @@ describe('loadSettings', () => {
     expect(onDisk().recaps).toBe(true)
   })
 
+  it('stays out of full-screen games by default, and a bad value falls back on its own', () => {
+    expect(loadSettings(dir).quietOverFullScreen).toBe(true)
+    const token = 'a'.repeat(64)
+    writeFileSync(settingsPath(dir), JSON.stringify({ token, quietOverFullScreen: false }), 'utf8')
+    expect(loadSettings(dir)).toMatchObject({ token, quietOverFullScreen: false })
+    writeFileSync(settingsPath(dir), JSON.stringify({ token, quietOverFullScreen: 1 }), 'utf8')
+    expect(loadSettings(dir)).toMatchObject({ token, quietOverFullScreen: true })
+    expect(onDisk().quietOverFullScreen).toBe(true)
+  })
+
   it('saves changes atomically and leaves no temp files behind', () => {
     const settings = loadSettings(dir)
     const paused = updateSettings(dir, settings, { paused: true })

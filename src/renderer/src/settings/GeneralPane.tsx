@@ -113,6 +113,14 @@ export function GeneralPane({ general, server, hooks, onShowHooks }: Props): Rea
               checked={general.safetyNet}
               onChange={(safetyNet) => void window.suriSettings.updateGeneral({ safetyNet })}
             />
+            <ToggleRow
+              label="Stay out of full-screen games"
+              hint="While a game or another app fills the screen, Suri hides, stays silent and frees the graphics card. A request waits until you leave it (Claude Code asks for itself after 110 s). VS Code and terminals in full screen don't count."
+              checked={general.quietOverFullScreen}
+              onChange={(quietOverFullScreen) =>
+                void window.suriSettings.updateGeneral({ quietOverFullScreen })
+              }
+            />
           </div>
         </Card>
       </Section>

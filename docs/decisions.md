@@ -92,7 +92,7 @@ Never rewrite an old decision. Supersede it with a new ADR and say why.
 **Consequences.** All logic that needs Node stays in main. The renderer is a pure view of `IslandSnapshot` plus its own hover state. Decision logic lives in `src/shared/` as pure functions (`reduceSessions`, `deriveIslandView`) that the tests cover without Electron.
 
 ## ADR-010 — Screen helper: Suri offers help when Paul looks stuck
-**Date:** 2026-10-04 · **Status:** Proposed by Paul. To confirm, then schedule after Phase 7 (it needs the AI layer from Phase 4 and the chat answers from Phase 7).
+**Date:** 2026-10-04 · **Status:** Proposed by Paul. To confirm, then schedule after Phase 7 (it needs the AI layer from Phase 4 and the chat answers from Phase 7). **2026-10-07:** Paul chose to build it after Phase 8, as v1.1.
 
 **Context.** Paul wants Suri to keep an eye on the screen, notice when he's stuck (an error that won't go away, failing builds), and offer help or a suggestion. Code in an answer should have a Copy button, like Claude's.
 
@@ -106,7 +106,7 @@ Never rewrite an old decision. Supersede it with a new ADR and say why.
 **Why it's a good resume piece.** Context-aware help with local vision and OCR, privacy by design, measured with an eval of "stuck" screens.
 
 ## ADR-011 — Push-to-talk: hold a shortcut, speak, Suri understands
-**Date:** 2026-10-04 · **Status:** Proposed by Paul. To confirm, then schedule with the screen helper (ADR-010).
+**Date:** 2026-10-04 · **Status:** Proposed by Paul. To confirm, then schedule with the screen helper (ADR-010). **2026-10-07:** Paul chose to build it after Phase 8, as v1.1.
 
 **Context.** Paul wants to hold Alt + Windows key, say a request, and have Suri act on it right away.
 
@@ -375,3 +375,19 @@ The 9b (5.6 GB at Ollama's 4k context) and the 7b (4.7 GB) can't share the 8 GB 
 **Decision.** The card's buttons ignore clicks for the first second, and after that a click only counts once the pointer has moved onto the buttons (`clickCounts` in `src/shared/click-guard.ts`). They look faded until then. A click that doesn't count shows "Move to a button, then click".
 
 **Consequences.** A deliberate approval takes longer than a second anyway, so normal use doesn't change. A cursor that was busy where the card appeared has to move first. It doesn't stop a game whose cursor sweeps across the buttons after that second; not popping up over a full-screen game at all would, and is proposed in PROJECT_STATE (Next).
+
+## ADR-029 — Suri stays out of full-screen games, through koffi
+**Date:** 2026-10-07 · **Status:** Accepted (Paul chose koffi over a hidden PowerShell helper). The real fix ADR-028 pointed to.
+
+**Context.** A card popped up over Dota 2, a game click landed on Allow, and the chirp played mid-game (ADR-028). The click guard only stops a cursor that was already busy where the card appeared. Keep warm (ADR-024) also held about 5.6 GB of the 8 GB graphics card while Paul played. Electron can't see other programs' windows, so Suri needs a native call. `SHQueryUserNotificationState` alone isn't enough: it can't say which monitor or which program is full screen.
+
+**Options.** koffi, a prebuilt FFI library (MIT, about 3 MB with its Windows binary, Node-API so nothing is compiled for Electron or for the tests) · a hidden PowerShell process that keeps answering (no new dependency, but 1–2 s to start, about 60 MB, and fragile) · a native module of our own (a compile step for Electron and another for Node, which ADR-020 avoided for SQLite).
+
+**Decision.**
+- **What counts** (`quietReason` in `src/shared/quiet.ts`, pure and tested): a Direct3D game that owns the screen, presentation mode, or a window in front that fills the island's monitor (the primary one). Not counted: an ordinary maximized window (it has a title bar, even when it overhangs the screen), the desktop and the taskbar, a full-screen app on another monitor, and the programs Claude Code runs in (VS Code, Cursor, Windows Terminal, PowerShell and other terminals), because full screen there is Paul at work.
+- **Asking Windows** (`src/main/foreground.ts`): the window in front, its size, its monitor, its style and class, through koffi. Loaded lazily; if koffi can't load, Suri shows itself as before. The program's name is read only for a window that fills the screen, once per process, with the least access there is (the name, as Task Manager reads it), because anti-cheat tools watch who opens a game's process. Only the file name is kept, never the path. One look takes about 0.1 ms.
+- **When it looks** (`src/main/quiet-watch.ts`): on every hook event, before anything can pop up, and every second while something could show or while quiet. With nothing on the island there is no timer. It goes quiet at once and comes back only after the game has been gone for a second, so a quick Alt+Tab doesn't bring the island up.
+- **While quiet:** main hides the overlay window (a hidden window draws nothing and takes no clicks, whatever the page does) and refuses to make it clickable. The page shows nothing and plays no sound, and the file panel closes. Held requests stay held: the card appears when the game is gone, mounting fresh, so the click guard starts then, with one chirp for whatever waited. Claude Code still asks for itself after 110 s. The risk check waits for the card to show, and a check that a game interrupts runs again after it. Recaps wait however long it takes (it doesn't count against their three yields). The warm-up stops, and Suri's own models leave Ollama's memory (`keep_alive: 0`, only the ones `/api/ps` lists as loaded, never a model Suri doesn't use).
+- **A switch,** Settings → General → "Stay out of full-screen games", on by default. The tray says "Staying quiet: dota2.exe is full screen".
+
+**Consequences.** No pop-ups, chirps or model loads over a game, and the game gets the graphics card back. The first risk check after a game loads the model again (about 8–13 s); the card shows the rule's level meanwhile. A browser playing a full-screen video counts as a game, which is wanted. A program that runs Claude Code and isn't on the list goes quiet in full screen; the list is one line to extend. Verified end to end in the packaged app with a full-screen window and a fake Ollama: the held request stayed hidden and silent, the model was unloaded and no risk call was made during the game, and the card came back with the AI's answer about two seconds after.

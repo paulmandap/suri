@@ -7,6 +7,7 @@ import {
   deriveIslandView,
   islandCardKey,
   pickFocus,
+  quietUi,
   type IslandUiState
 } from '@shared/island-mode'
 import type { IslandSnapshot, PendingApproval, Session } from '@shared/types'
@@ -34,6 +35,7 @@ function snapshot(sessions: Session[], extra: Partial<IslandSnapshot> = {}): Isl
     sessions,
     approvals: [],
     paused: false,
+    quiet: false,
     hookServer: { state: 'listening', port: 47821 },
     hooks: 'installed',
     sounds: { needsYou: true, finished: false },
@@ -266,5 +268,48 @@ describe('the file panel (ADR-027)', () => {
     const flash = ui({ askOpen: true, feedback: { id: 'a1', decision: 'allow', project: 'demo' } })
     expect(deriveIslandView(snapshot([session()]), flash, NOW).card?.kind).toBe('feedback')
     expect(deriveIslandView(snapshot([session()]), open, NOW).mode).toBe('ask')
+  })
+})
+
+describe('a full-screen game in front (ADR-029)', () => {
+  const held: PendingApproval = {
+    id: 'a1',
+    sessionId: 's1',
+    project: 'demo',
+    tool: 'Bash',
+    verb: 'Running',
+    detail: 'npm publish',
+    createdAt: NOW - 1_000,
+    expiresAt: NOW + 100_000
+  }
+
+  it('shows nothing at all: no card, no panel, no hover, no broken server', () => {
+    const quiet = { quiet: true }
+    const views = [
+      deriveIslandView(snapshot([session()], { ...quiet, approvals: [held] }), UI, NOW),
+      deriveIslandView(snapshot([session()], quiet), ui({ askOpen: true, hovering: true }), NOW),
+      deriveIslandView(
+        snapshot([session({ finishedAt: NOW })], quiet),
+        ui({ pinnedOpen: true }),
+        NOW
+      ),
+      deriveIslandView(
+        snapshot([], { ...quiet, hookServer: { state: 'error', port: 1, message: 'taken' } }),
+        UI,
+        NOW
+      )
+    ]
+    expect(views.map((view) => view.mode)).toEqual(['hidden', 'hidden', 'hidden', 'hidden'])
+  })
+
+  it('brings the held request back as a fresh card once the game is gone', () => {
+    const view = deriveIslandView(snapshot([session()], { approvals: [held] }), UI, NOW)
+    expect(view.card?.kind).toBe('approval')
+  })
+
+  it('forgets the hover, the pin and the file panel, so nothing pops open after', () => {
+    const busy = ui({ hovering: true, pinnedOpen: true, askOpen: true })
+    expect(quietUi(busy)).toEqual({ ...busy, hovering: false, pinnedOpen: false, askOpen: false })
+    expect(quietUi(UI)).toBe(UI)
   })
 })

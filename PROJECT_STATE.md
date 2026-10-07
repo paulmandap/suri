@@ -1,12 +1,12 @@
 # Project state
 
-_Last updated: 2026-10-07 (Phase 7 built: questions about a file; known issues fixed: speed, approval click guard, delete history, evals for every AI feature)_
+_Last updated: 2026-10-07 (Suri stays out of full-screen games, ADR-029; the screen helper and push-to-talk moved to after Phase 8)_
 
 Read `CLAUDE.md` first. The plan is in `~/.claude/plans/i-want-to-build-zany-gosling.md` (local only, not in the repo).
 
 ## Where we are
 
-**Phase 7 is built: drop a file on the island and ask about it** (ADR-027), and **most known issues are fixed**: the model is loaded before it's needed and Ollama starts with Suri (ADR-024), approval clicks must be aimed (ADR-028), the risk model no longer sees shell comments (ADR-025), History can be deleted, and every AI feature has an eval (ADR-026). The panel was tested in the app (drop, ask, answer, copy, focus); a real drag from Explorer and the Open dialog are left for Paul (Next → 1). **After that comes Phase 8** (ship and resume), or the proposed screen helper first.
+**Suri now stays out of full-screen games** (ADR-029): while a game or another app fills the screen, the island hides and stays silent, AI work waits, and Suri's model leaves the graphics card; what waited shows (and chirps) when the game is gone. **Phase 7 is built: drop a file on the island and ask about it** (ADR-027), and most known issues are fixed (ADR-024 to ADR-028). Paul chose (2026-10-07) to build the screen helper and push-to-talk **after Phase 8**, as v1.1. **Next is Phase 8** (ship and resume), after Paul's short checks (Next → 1 and 2).
 
 | Phase | Status |
 |---|---|
@@ -18,8 +18,18 @@ Read `CLAUDE.md` first. The plan is in `~/.claude/plans/i-want-to-build-zany-gos
 | 5 Mascot | ✅ Done (a turning animation is left for later) |
 | 6 Recap, history, digest | ✅ Done |
 | 7 Drop a file, ask a question | ✅ Done (a real drag from Explorer left for Paul) |
-| Proposed: Screen helper + push-to-talk | Paul to confirm (ADR-010, ADR-011) |
+| Stay out of full-screen games (ADR-029) | ✅ Done (a check with a real game left for Paul) |
 | 8 Ship and resume | Next |
+| v1.1: Screen helper + push-to-talk | After Phase 8 (Paul, 2026-10-07; ADR-010, ADR-011) |
+
+## Staying out of full-screen games (ADR-029)
+
+- **What counts** (`src/shared/quiet.ts`): a window in front that fills the island's monitor, a Direct3D game that owns the screen, or presentation mode. Not counted: a maximized window, the desktop, another monitor, and the programs Claude Code runs in (VS Code, Cursor, Windows Terminal, PowerShell, cmd, Git Bash's mintty and a few more), so a full-screen VS Code still gets its cards.
+- **How Suri knows** (`src/main/foreground.ts`): Windows calls through **koffi** (new dependency, MIT, about 3 MB, prebuilt, nothing to compile). One look takes about 0.1 ms. It looks on every hook event and once a second while something could show (`src/main/quiet-watch.ts`). It goes quiet at once and comes back a second after the game is gone. The program's name is read only for a full-screen window, once per process, with the least access (anti-cheat tools watch who opens a game).
+- **While quiet:** the overlay window is hidden (it can't take a click), no sounds, the file panel closes. A held request waits; when the game is gone the card appears fresh (the click guard starts then) with one chirp. The risk check runs then too, and recaps wait. The warm-up stops and Suri's model is unloaded from Ollama (`keep_alive: 0`), so the game gets the graphics card. Claude Code still asks for itself after 110 s.
+- **Settings → General → "Stay out of full-screen games"** (on by default). The tray says "Staying quiet: dota2.exe is full screen".
+- **Verified:** typecheck, lint, the build and **633 unit tests** (27 new: the decision table with the window shapes measured on this PC, the watcher's timing, waiting and giving up, the recap queue held through more games than its yield limit, sounds, the island view, settings, Ollama's `/api/ps` and unload, and a smoke test of the real Windows calls). A mutation check: counting a game as a recap yield fails the test. **End to end in the packaged app** (`electron-builder --dir`, koffi's binary unpacked from the asar automatically), with a scratch `SURI_DATA_DIR`, a fake Ollama that logged every call, and a black full-screen window for 9 s: a replayed request during the "game" gave a black screenshot (no island, no card); the fake Ollama saw `/api/ps` and an unload, and no warm-up and no risk call; about 2 s after the window closed the card appeared with the AI's answer, and the warm-up came back on the next event. Paul's own Suri and Ollama weren't touched.
+- **Not checked by hand:** a real game (Dota 2 in its own full-screen mode, Next → 2), the tray line and the Settings switch, the chirp on coming back (unit tested only).
 
 ## Phase 7 and the known-issue fixes (ADR-024 to ADR-028)
 
@@ -133,12 +143,13 @@ Read `CLAUDE.md` first. The plan is in `~/.claude/plans/i-want-to-build-zany-gos
 7. **Recaps and History:** with Ollama running, just use Claude Code: each finished request shows "writing a recap…" on the card, then the recap. Tray → **History…** shows every request today. `npm run replay -- workday --record` adds four sample requests (they do land in your history; leave out `--record` to keep them out).
 8. **Standup notes:** tray → **Today's digest**, then **Copy** or **Save as .md**.
 9. **Ask about a file:** hover the island and click **+ Ask a file** (or tray → Ask about a file…). Drag a PDF or a Markdown file from Explorer onto the panel, then ask about it. Esc closes it.
+10. **Full-screen games:** run `npm run replay -- permission --hold 60000`, then put a game (or a browser with F11) in full screen: the card vanishes. Leave full screen: it comes back with a chirp.
 
 ## Next
 
 1. **Paul: two minutes with the file panel.** With Suri running, hover the island → **+ Ask a file**, drag a PDF from Explorer onto it, ask something. Then **Choose a file…** once, and History → **Save as .md** once. Tell Claude if anything is off.
-2. **Proposed: don't pop up over a full-screen game** (ADR-028's real fix). Windows can say when a full-screen game or app is in front (`SHQueryUserNotificationState`); Suri would then keep cards silent and click-through, chirp later, and maybe pause keep-warm so the game gets the graphics card. Needs a small native call, so it's Paul's call.
-3. **Phase 8: ship and resume** (plan, Phase 8): the installer with an uninstall step (hooks and history), GitHub Actions, the README with a demo, and the resume bullets. Also decide about `@google/genai` (it brings unused packages; plain `fetch` would do).
+2. **Paul: one game check (about 3 minutes, ADR-029).** With Suri running and Dota 2 open in full screen: in a terminal, `npm run replay -- permission --hold 60000`, then switch to the game within a few seconds. The card should vanish within a second, with no sound. Hover the tray icon: "Staying quiet: dota2.exe is full screen". Leave the game after about 10 s: the card comes back with a chirp. Tell Claude if the game wasn't detected (and which display mode it uses). Also: during the 2026-10-07 test a card got an Allow click about 3 s after it appeared over Paul's browser; tell Claude whether that was on purpose.
+3. **Phase 8: ship and resume** (plan, Phase 8): the installer with an uninstall step (hooks and history), GitHub Actions, the README with a demo, and the resume bullets. Also decide about `@google/genai` (it brings unused packages; plain `fetch` would do), leave koffi's docs and C++ sources out of the installer, and list third-party licences (koffi is MIT).
 4. **The hooks are installed** on Paul's settings (seen 2026-10-06: all 11 entries, and this chat showed on the island). Two small checks are left:
    1. Quit Suri and send one prompt: you should see "Stop hook error" once (expected, ADR-002).
    2. In `sandbox/`, check that each tool shows up once on the island, not twice. The Claude Code docs say identical hooks run once; if you see doubles, tell Claude and delete the `hooks` block in `sandbox/.claude/settings.local.json`.
@@ -148,9 +159,8 @@ Read `CLAUDE.md` first. The plan is in `~/.claude/plans/i-want-to-build-zany-gos
    3. Ask for `git push --force` in a repo with no remote. Does Suri's card appear (safety net), or only VS Code's own prompt?
    4. Quit Suri (tray → Quit Suri) and ask once more. What does VS Code show?
    5. Tell Claude what you saw. It goes into `docs/spike-hooks.md` and ADR-002 / ADR-012.
-6. **Paul: confirm the screen helper and push-to-talk** (ADR-010, ADR-011) as a new phase after Phase 7.
+6. **After Phase 8 (v1.1): the screen helper and push-to-talk** (ADR-010, ADR-011), each with its own spike first.
 7. **Paul, when Gemini isn't overloaded: the Gemini evals** (about 20 minutes, paced for the free tier; the key is already in the VS Code terminal): `npm run eval:digest -- --models gemini-3.8-flash`, then the same with `eval:files`, `eval:recap` and `eval:risk`. The digest and file questions use Gemini by default, so these two matter most.
-8. ~~A rule for `rm -rf ../other`~~: not needed. Since comments are taken out (ADR-025), `qwen3.5:9b` + the rules catch all 22 high-risk eval cases.
 
 ## How to run
 
@@ -159,7 +169,8 @@ Read `CLAUDE.md` first. The plan is in `~/.claude/plans/i-want-to-build-zany-gos
 - `npm run sandbox:hooks` (needs Suri started once) · `npm run replay -- session|permission|risky|explain|error|multi|workday|end [--hold ms] [--record]` (`--record` saves the replay in History and writes recaps)
 - `npm run eval:risk` and `npm run eval:recap` (live models; see `evals/README.md`). `-- --models a,b` for some models, `-- --limit 5` for a quick check that saves nothing, `-- --report` to rebuild the report from saved runs (after a rule change, say).
 - Dev switches: `SURI_ALLOW_CAPTURE=1` (show Suri in screenshots), `SURI_DEVTOOLS=1` (DevTools for the island, Settings and History), `CLAUDE_CONFIG_DIR=<folder>` (point the installer at a test settings.json), `SURI_DATA_DIR=<folder>` (a Suri with its own settings and history; give it another port), `--settings` / `--history` (open that window at launch).
-- An end-to-end run without the GPU: a tiny server on another port that answers `/api/tags` and `/api/chat` with canned JSON, set as the Ollama address in the scratch `settings.json` (Phase 6 did this; the script isn't in the repo).
+- An end-to-end run without the GPU: a tiny server on another port that answers `/api/tags` and `/api/chat` with canned JSON, set as the Ollama address in the scratch `settings.json` (Phase 6 and ADR-029 did this; the script isn't in the repo).
+- Launching Electron from a Claude Code session in VS Code needs `ELECTRON_RUN_AS_NODE` unset; that goes for the packaged `dist/win-unpacked/suri.exe` too.
 - Tests need Node 22.13+ (`node:sqlite` without a flag).
 - Talk to Ollama through its HTTP API (`curl http://127.0.0.1:11434/api/version`) in scripts: running the `ollama` command started a pending Ollama update on 2026-10-05.
 
@@ -167,8 +178,9 @@ Read `CLAUDE.md` first. The plan is in `~/.claude/plans/i-want-to-build-zany-gos
 
 - **Not checked by hand yet:** a real drag from Explorer onto the file panel, the Open dialog, Save as .md and the tray items. Next → 1.
 - While the file panel is open it takes clicks at the top centre of the screen (by design, so a drop can land); a click there in another app closes it instead (seen when the test panel was open over Paul's browser).
-- **Cards pop up over full-screen games.** The click guard (ADR-028) stops a busy cursor from approving, but a game cursor that sweeps across the buttons a second later still could, and the chirp plays mid-game. Next → 2 proposes the real fix.
-- **Keep warm holds the graphics card while Claude Code works**, about 5.6 GB for `qwen3.5:9b`, also while Paul games, until 15 minutes after Claude Code goes quiet. Switch it off in Settings → AI. Starting Ollama's app can install a waiting Ollama update.
+- **Full-screen games (ADR-029) not tried with a real game yet**, only with a full-screen Electron window (Next → 2). A game in a plain window (not full screen) still gets cards and keeps the model on the graphics card. A program that runs Claude Code but isn't on the list in `src/shared/quiet.ts` goes quiet in full screen. A card over another app (not a game) can still catch a click meant for that app once the pointer moves onto it; the click guard (ADR-028) only stops a cursor that was already there.
+- **Keep warm holds the graphics card while Claude Code works**, about 5.6 GB for `qwen3.5:9b`, until 15 minutes after Claude Code goes quiet. A full-screen game frees it (ADR-029); a windowed one doesn't. Switch it off in Settings → AI. Starting Ollama's app can install a waiting Ollama update.
+- The installer carries koffi's docs and C++ sources (about 1 MB it doesn't need). Phase 8.
 - A load from disk, after a restart or when Windows drops the model file from its cache, can still take much longer than 10 s (17 s for the 9b and 60 s for the 7b right after the Ollama update). The warm-up starts it early; a risk check that runs out of its 45 s says the model is probably still loading.
 - The digest eval: `qwen3.5:9b` (the digest's fallback) once listed half-finished work as done (two of three endpoints, the third stubbed), and most models put a failed run under blockers rather than in progress. Small set (6 days); read it as a sanity check.
 - File questions: Gemini gets PDF text only, without images or layout, because a raw PDF can't be redacted (ADR-027). A scanned PDF has no text and is refused.

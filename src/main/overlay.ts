@@ -7,7 +7,11 @@ import { is } from '@electron-toolkit/utils'
 export const OVERLAY_WIDTH = 640
 export const OVERLAY_HEIGHT = 420
 
-export function createOverlayWindow(opts: { hideFromCapture: boolean }): BrowserWindow {
+export function createOverlayWindow(opts: {
+  hideFromCapture: boolean
+  /** A full-screen game is in front at start-up: stay hidden until it's gone (ADR-029). */
+  startHidden?: () => boolean
+}): BrowserWindow {
   const win = new BrowserWindow({
     ...overlayBounds(),
     title: 'Suri',
@@ -62,7 +66,9 @@ export function createOverlayWindow(opts: { hideFromCapture: boolean }): Browser
     if (!win.isDestroyed()) win.reload()
   })
 
-  win.once('ready-to-show', () => win.showInactive())
+  win.once('ready-to-show', () => {
+    if (!opts.startHidden?.()) win.showInactive()
+  })
 
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     void win.loadURL(process.env['ELECTRON_RENDERER_URL'])
@@ -95,15 +101,33 @@ export function setOverlayAsking(win: BrowserWindow, asking: boolean): void {
   if (asking) {
     win.setFocusable(true)
     setOverlayInteractive(win, true)
-    // `suri --ask` at launch can get here before the window has appeared.
+    // `suri --ask` at launch, or behind a full-screen game (ADR-029), can get
+    // here before the window shows. By then the panel may have closed again.
     if (win.isVisible()) win.focus()
-    else win.once('show', () => win.focus())
+    else win.once('show', () => win.isFocusable() && win.focus())
     return
   }
   // Hand focus back first, while the window still owns it.
   if (win.isFocused()) win.blur()
   win.setFocusable(false)
   setOverlayInteractive(win, false)
+}
+
+/**
+ * Out of the way of a full-screen game (ADR-029). A hidden window draws
+ * nothing and takes no clicks, whatever the page does. Coming back, it
+ * shows without taking focus, still click-through until the pointer comes.
+ */
+export function setOverlayHidden(win: BrowserWindow, hidden: boolean): void {
+  if (hidden) {
+    setOverlayInteractive(win, false)
+    win.hide()
+    return
+  }
+  if (win.isVisible()) return
+  win.showInactive()
+  // Keep its place above other always-on-top windows after being hidden.
+  win.setAlwaysOnTop(true, 'screen-saver')
 }
 
 /**

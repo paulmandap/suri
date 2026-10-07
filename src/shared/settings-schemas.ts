@@ -11,7 +11,8 @@ export const generalPatchSchema = z.strictObject({
   openAtLogin: z.boolean().optional(),
   soundNeedsYou: z.boolean().optional(),
   soundFinished: z.boolean().optional(),
-  recaps: z.boolean().optional()
+  recaps: z.boolean().optional(),
+  quietOverFullScreen: z.boolean().optional()
 })
 
 export type GeneralPatch = z.infer<typeof generalPatchSchema>

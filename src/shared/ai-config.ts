@@ -74,6 +74,26 @@ export function warmModel(ai: AiSettings): string | null {
   return null
 }
 
+/**
+ * Of the models Ollama has loaded, the ones Suri uses: any feature's local
+ * model and the fallback. These go when a full-screen game needs the
+ * graphics card (ADR-029); a model Paul loaded himself stays.
+ */
+export function suriModelsIn(ai: AiSettings, loaded: readonly string[]): string[] {
+  const mine = new Set([
+    ...Object.values(ai.routes)
+      .filter((route) => route.provider === 'ollama')
+      .map((route) => withTag(route.model)),
+    withTag(ai.fallbackModel)
+  ])
+  return loaded.filter((name) => mine.has(withTag(name)))
+}
+
+/** Ollama lists `llama3` as `llama3:latest`. */
+function withTag(model: string): string {
+  return model.includes(':') ? model : `${model}:latest`
+}
+
 /** Ollama names, e.g. `qwen3.5:9b` or `hf.co/user/repo:Q4_K_M`. */
 const OLLAMA_MODEL = /^[A-Za-z0-9][A-Za-z0-9._:/+-]{0,127}$/
 /** Gemini ids, e.g. `gemini-3.8-flash`. They end up in a URL path, so nothing else. */

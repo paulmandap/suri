@@ -7,6 +7,8 @@ import trayIcon from '../../resources/tray.ico?asset'
 export interface TrayState {
   sessions: number
   paused: boolean
+  /** Why Suri is staying out of a full-screen game, or null (ADR-029). */
+  quiet: string | null
   hideFromCapture: boolean
   safetyNet: boolean
   hookServer: HookServerStatus
@@ -88,6 +90,7 @@ export function createTray(getState: () => TrayState, actions: TrayActions): Sur
 function statusLine(state: TrayState): string {
   if (state.hookServer.state === 'error') return state.hookServer.message
   if (state.paused) return 'Paused'
+  if (state.quiet) return `Staying quiet: ${state.quiet}`
   if (state.sessions > 0) {
     return state.sessions === 1 ? '1 Claude Code session' : `${state.sessions} Claude Code sessions`
   }

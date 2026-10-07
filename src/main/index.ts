@@ -3,7 +3,13 @@ import { existsSync, writeFileSync } from 'node:fs'
 import { readFile, stat } from 'node:fs/promises'
 import { basename, dirname, join, resolve } from 'node:path'
 import { electronApp } from '@electron-toolkit/utils'
-import { KEEP_WARM_FOR, applyAiPatch, warmModel, type ProviderId } from '@shared/ai-config'
+import {
+  KEEP_WARM_FOR,
+  applyAiPatch,
+  suriModelsIn,
+  warmModel,
+  type ProviderId
+} from '@shared/ai-config'
 import { buildDigestFacts, digestMarkdown } from '@shared/digest'
 import { MAX_FILE_BYTES, TEXT_EXTENSIONS, type AskStart, type LoadResult } from '@shared/file-qa'
 import {
@@ -25,12 +31,13 @@ import { writeDigest } from './ai/digest'
 import { createFileChat } from './ai/file-qa'
 import { createGeminiProvider } from './ai/gemini'
 import { createOllamaProvider } from './ai/ollama'
-import type { AIProvider } from './ai/provider'
+import { AIError, type AIProvider } from './ai/provider'
 import { createRecapWriter } from './ai/recap'
 import { createRiskExplainer } from './ai/risk'
 import { createAIRouter } from './ai/router'
 import { createModelWarmer } from './ai/warm'
 import { createApprovalBroker, safetyNetAnswer } from './approvals'
+import { loadForegroundProbe } from './foreground'
 import { historyFile, openHistory } from './history'
 import { createHistoryWindow, registerHistoryIpc } from './history-window'
 import { createHookServer, type HookHandlerOptions, type HookServer } from './hook-server'
@@ -41,8 +48,10 @@ import {
   applyContentProtection,
   createOverlayWindow,
   setOverlayAsking,
+  setOverlayHidden,
   setOverlayInteractive
 } from './overlay'
+import { createQuietWatch, whileLoud } from './quiet-watch'
 import { createSessionsStore } from './sessions-store'
 import { createSecretStore } from './secrets'
 import { loadSettings, updateSettings } from './settings'
@@ -145,17 +154,34 @@ async function start(): Promise<void> {
       }
       if (!approval.replayed) history?.recordDecision(approval, outcome)
     },
-    explain: (input, signal) => riskExplainer.explain(input, signal)
+    // Nobody reads the card while a game fills the screen, and the game needs
+    // the graphics card: the check runs once the card can show (ADR-029).
+    explain: async (input, signal) =>
+      (await whileLoud(fullScreen, signal, (run) => riskExplainer.explain(input, run))) ?? {
+        ok: false,
+        reason: 'Cancelled.'
+      }
+  })
+
+  // Staying out of full-screen games (ADR-029): Windows says what's in front.
+  // Looked at on every hook event, and every second while something could show.
+  const fullScreen = createQuietWatch({
+    probe: await loadForegroundProbe(log),
+    enabled: () => settings.quietOverFullScreen,
+    active: () => sessions.list().length > 0 || approvals.list().length > 0,
+    log
   })
 
   // Recaps share the GPU with the risk check, and Paul waits on that one:
-  // a recap waits while a check runs and stops if one starts (ADR-021).
+  // a recap waits while a check runs and stops if one starts (ADR-021). A
+  // full-screen game holds them all until it's gone (ADR-029).
   const recaps = history
     ? createRecapWriter({
         router,
         source: (turnId) => history.recapSource(turnId),
         save: (turnId, update) => history.setRecap(turnId, update),
         busy: () => approvals.list().some((approval) => approval.checkingRisk === true),
+        held: () => fullScreen.quiet(),
         log
       })
     : null
@@ -189,7 +215,9 @@ async function start(): Promise<void> {
     token: settings.token,
     isPaused: () => settings.paused,
     onEvent: (event, { signal }) => {
-      warmer.touch()
+      // Before anything can pop up: is a full-screen game in front?
+      fullScreen.refresh()
+      if (!fullScreen.quiet()) warmer.touch()
       sessions.apply(event)
       const turn = history?.record(event) ?? null
       if (event.hook_event_name === 'Stop' && turn !== null) recapTurn(event.session_id, turn)
@@ -223,6 +251,7 @@ async function start(): Promise<void> {
     sessions: sessions.list(),
     approvals: approvals.list(),
     paused: settings.paused,
+    quiet: fullScreen.quiet(),
     hookServer: server.status(),
     hooks: installer.status().inspection.state,
     sounds: { needsYou: settings.soundNeedsYou, finished: settings.soundFinished },
@@ -241,6 +270,7 @@ async function start(): Promise<void> {
         soundNeedsYou: settings.soundNeedsYou,
         soundFinished: settings.soundFinished,
         recaps: settings.recaps,
+        quietOverFullScreen: settings.quietOverFullScreen,
         history: {
           file: historyFile(userData),
           ok: history !== null,
@@ -281,7 +311,12 @@ async function start(): Promise<void> {
   installer.onChange(push)
   let unwatchServer = server.onStatus(push)
 
-  overlay = createOverlayWindow({ hideFromCapture: settings.hideFromCapture })
+  // Started during a game (Start with Windows, say): the island waits it out.
+  fullScreen.refresh()
+  overlay = createOverlayWindow({
+    hideFromCapture: settings.hideFromCapture,
+    startHidden: () => fullScreen.quiet()
+  })
   const fromOverlay = (sender: Electron.WebContents): boolean =>
     overlay !== null && !overlay.isDestroyed() && sender === overlay.webContents
 
@@ -300,8 +335,10 @@ async function start(): Promise<void> {
   // show an Open dialog; it never names a path. The file stays in memory.
   let askOpen = false
   ipcMain.on(IPC.setInteractive, (event, interactive: unknown) => {
-    // While the file panel is open the window keeps taking clicks.
-    if (overlay && fromOverlay(event.sender) && typeof interactive === 'boolean' && !askOpen) {
+    // While the file panel is open the window keeps taking clicks. Behind a
+    // full-screen game it takes none, whatever the page says.
+    if (!overlay || !fromOverlay(event.sender) || typeof interactive !== 'boolean') return
+    if (!askOpen && !(interactive && fullScreen.quiet())) {
       setOverlayInteractive(overlay, interactive)
     }
   })
@@ -318,6 +355,40 @@ async function start(): Promise<void> {
     askOpen = open
     setOverlayAsking(overlay, open)
     if (!open) fileChat.close()
+  })
+
+  /** The game gets the graphics card back: Suri's models leave Ollama's memory (ADR-029). */
+  const freeGraphicsCard = async (): Promise<void> => {
+    try {
+      const ours = suriModelsIn(settings.ai, await ollama.loaded())
+      for (const model of ours) await ollama.unload(model)
+      if (ours.length > 0) log(`freed the graphics card (${ours.join(', ')})`)
+    } catch (err) {
+      // Ollama is closed, so nothing of Suri's is loaded.
+      if (!(err instanceof AIError && err.kind === 'offline')) {
+        log(`couldn't free the graphics card: ${err instanceof Error ? err.message : err}`)
+      }
+    }
+  }
+
+  // A full-screen game came to the front, or went away (ADR-029). The island
+  // hides and takes no clicks; what waited meanwhile shows (and chirps) after.
+  fullScreen.onChange((quiet) => {
+    if (overlay && !overlay.isDestroyed()) {
+      if (quiet && askOpen) {
+        askOpen = false
+        setOverlayAsking(overlay, false)
+        fileChat.close()
+      }
+      setOverlayHidden(overlay, quiet)
+    }
+    // A recap running now stops and waits; held ones start again after.
+    recaps?.nudge()
+    if (quiet) {
+      warmer.reset()
+      void freeGraphicsCard()
+    }
+    push()
   })
   ipcMain.handle(IPC.loadFile, (event, name: unknown, bytes: unknown): Promise<LoadResult> => {
     const parsedName = fileNameSchema.safeParse(name)
@@ -440,6 +511,10 @@ async function start(): Promise<void> {
     if (patch.soundNeedsYou !== undefined) change({ soundNeedsYou: patch.soundNeedsYou })
     if (patch.soundFinished !== undefined) change({ soundFinished: patch.soundFinished })
     if (patch.recaps !== undefined) change({ recaps: patch.recaps })
+    if (patch.quietOverFullScreen !== undefined) {
+      change({ quietOverFullScreen: patch.quietOverFullScreen })
+      fullScreen.refresh()
+    }
     if (patch.openAtLogin !== undefined) setOpenAtLogin(patch.openAtLogin)
     if (patch.port !== undefined) return changePort(patch.port)
     return { ok: true }
@@ -674,6 +749,7 @@ async function start(): Promise<void> {
     () => ({
       sessions: sessions.list().length,
       paused: settings.paused,
+      quiet: fullScreen.label(),
       hideFromCapture: settings.hideFromCapture,
       safetyNet: settings.safetyNet,
       hookServer: server.status(),
@@ -711,6 +787,7 @@ async function start(): Promise<void> {
     if (!openFromArgs(argv)) openIsland()
   })
   app.on('before-quit', () => {
+    fullScreen.stop()
     recaps?.stop()
     approvals.releaseAll()
     installer.close()

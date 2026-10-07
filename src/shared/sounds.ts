@@ -74,10 +74,12 @@ function wave(kind: Note['wave'], phase: number): number {
  * The cue a new snapshot calls for, or null. Only something new makes a
  * sound: a request that just arrived, a session that just finished or
  * failed. The first snapshot after a start stays quiet, and so does a
- * paused Suri.
+ * paused Suri, or one staying out of a full-screen game (ADR-029). Back
+ * from the game, whatever still needs Paul gets its chirp then.
  */
 export function soundFor(prev: IslandSnapshot | null, next: IslandSnapshot): SoundCue | null {
-  if (!prev || next.paused) return null
+  if (!prev || next.paused || next.quiet) return null
+  if (prev.quiet) return next.sounds.needsYou && needsPaul(next) ? 'needs-you' : null
   const before = new Map(prev.sessions.map((s) => [s.id, s]))
   const seen = new Set(prev.approvals.map((a) => a.id))
 
@@ -97,4 +99,12 @@ export function soundFor(prev: IslandSnapshot | null, next: IslandSnapshot): Sou
   if (changed('failedAt')) return 'error'
   if (changed('finishedAt')) return 'finished'
   return null
+}
+
+/** A request held for Allow or Deny, or a session waiting on Claude Code's own prompt. */
+function needsPaul(snapshot: IslandSnapshot): boolean {
+  return (
+    snapshot.approvals.length > 0 ||
+    snapshot.sessions.some((s) => s.status === 'waiting' && s.pendingPermission !== undefined)
+  )
 }

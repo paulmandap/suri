@@ -45,6 +45,7 @@ export interface GeneralView {
   soundNeedsYou: boolean
   soundFinished: boolean
   recaps: boolean
+  quietOverFullScreen: boolean
   /** Suri's history database, or why it couldn't be opened. */
   history: { file: string; ok: boolean; message?: string }
 }

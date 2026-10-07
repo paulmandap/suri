@@ -29,7 +29,10 @@ const chatLine = z.object({
 const tagsReply = z.object({ models: z.array(z.object({ name: z.string() })) })
 const versionReply = z.object({ version: z.string() })
 // /api/generate with no prompt only loads the model, then answers done.
+// With keep_alive 0 it unloads it instead, and says done_reason "unload".
 const loadReply = z.object({ done: z.boolean() })
+// The models in memory now (Ollama 0.40.0 on this PC, 2026-10-07).
+const psReply = z.object({ models: z.array(z.object({ name: z.string() })) })
 
 /** Runs one network step (the fetch, a body read), turning any failure into an AIError. */
 type Net = <R>(step: () => Promise<R>) => Promise<R>
@@ -54,6 +57,10 @@ export interface OllamaProvider extends AIProvider {
    * Ollama documents), so the next real call doesn't wait for the load.
    */
   warm(model: string, signal?: AbortSignal): Promise<void>
+  /** The models in memory now. */
+  loaded(signal?: AbortSignal): Promise<string[]>
+  /** Takes a model out of memory now, giving its share of the graphics card back. */
+  unload(model: string, signal?: AbortSignal): Promise<void>
 }
 
 /** A load from disk took up to 60 s on this PC (2026-10-07). Nobody waits on a warm-up. */
@@ -176,6 +183,22 @@ export function createOllamaProvider(opts: {
         signal,
         timeoutMs: WARM_TIMEOUT_MS,
         body: { model, ...keepAlive() }
+      })
+      parseOllama(await net(() => res.text()), loadReply, base)
+    },
+
+    async loaded(signal?: AbortSignal): Promise<string[]> {
+      const { models } = await getJson(opts.url(), '/api/ps', psReply, signal)
+      return models.map((model) => model.name)
+    },
+
+    async unload(model: string, signal?: AbortSignal): Promise<void> {
+      const base = opts.url()
+      const { res, net } = await open(base, '/api/generate', {
+        model,
+        signal,
+        timeoutMs: QUICK_TIMEOUT_MS,
+        body: { model, keep_alive: 0 }
       })
       parseOllama(await net(() => res.text()), loadReply, base)
     },

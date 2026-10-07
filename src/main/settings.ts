@@ -51,6 +51,7 @@ const storedSchema = z.looseObject({
   soundNeedsYou: z.boolean().optional().catch(undefined),
   soundFinished: z.boolean().optional().catch(undefined),
   recaps: z.boolean().optional().catch(undefined),
+  quietOverFullScreen: z.boolean().optional().catch(undefined),
   ai: aiSchema.optional().catch(undefined)
 })
 
@@ -104,6 +105,7 @@ export function loadSettings(dir: string): SuriSettings {
     soundNeedsYou: stored.soundNeedsYou ?? true,
     soundFinished: stored.soundFinished ?? false,
     recaps: stored.recaps ?? true,
+    quietOverFullScreen: stored.quietOverFullScreen ?? true,
     ai: aiFrom(stored.ai)
   }
   const complete =
@@ -115,6 +117,7 @@ export function loadSettings(dir: string): SuriSettings {
     stored.soundNeedsYou === settings.soundNeedsYou &&
     stored.soundFinished === settings.soundFinished &&
     stored.recaps === settings.recaps &&
+    stored.quietOverFullScreen === settings.quietOverFullScreen &&
     // Same fields in the same order: anything missing or reset gets written back.
     JSON.stringify(stored.ai) === JSON.stringify(settings.ai)
   if (!complete) writeAtomic(file, { ...stored, ...settings })

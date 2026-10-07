@@ -70,6 +70,7 @@ function snap(overrides: Partial<IslandSnapshot> = {}): IslandSnapshot {
     sessions: [session()],
     approvals: [],
     paused: false,
+    quiet: false,
     hookServer: { state: 'listening', port: 47821 },
     hooks: 'installed',
     sounds: { needsYou: true, finished: true },
@@ -125,5 +126,22 @@ describe('soundFor', () => {
     // Needs-you off doesn't hide a finish that arrives with it.
     const onlyFinished = { needsYou: false, finished: true }
     expect(soundFor(snap(), snap({ ...request, ...finish, sounds: onlyFinished }))).toBe('finished')
+  })
+
+  it('is silent behind a full-screen game, and chirps for what waited once it is gone', () => {
+    const game = snap({ quiet: true })
+    const request = { approvals: [approval('a1')] }
+    expect(soundFor(snap(), snap({ ...request, quiet: true }))).toBeNull()
+    expect(soundFor(game, snap({ ...request, quiet: true }))).toBeNull()
+    expect(soundFor(game, snap({ sessions: [session({ finishedAt: 7 })], quiet: true }))).toBeNull()
+    // Back from the game: one chirp for the request that arrived meanwhile.
+    const back = snap(request)
+    expect(soundFor(snap({ ...request, quiet: true }), back)).toBe('needs-you')
+    expect(soundFor(back, back)).toBeNull()
+    expect(soundFor(game, snap({ sessions: [waiting(5)] }))).toBe('needs-you')
+    // Nothing waiting, or the switch is off: back without a sound. A finish isn't replayed.
+    expect(soundFor(game, snap({ sessions: [session({ finishedAt: 7 })] }))).toBeNull()
+    const off = { needsYou: false, finished: true }
+    expect(soundFor(game, snap({ ...request, sounds: off }))).toBeNull()
   })
 })

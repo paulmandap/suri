@@ -164,6 +164,8 @@ export interface IslandSnapshot {
   /** Oldest first. */
   approvals: PendingApproval[]
   paused: boolean
+  /** A full-screen game or app is in front: the island hides and stays silent (ADR-029). */
+  quiet: boolean
   hookServer: HookServerStatus
   /** Suri's hooks in ~/.claude/settings.json. A project can still have its own (sandbox/). */
   hooks: HookState
@@ -187,6 +189,8 @@ export interface SuriSettings {
   soundFinished: boolean
   /** Write an AI recap when a turn finishes (ADR-021). */
   recaps: boolean
+  /** Hide, stay silent and free the graphics card while a full-screen game is in front (ADR-029). */
+  quietOverFullScreen: boolean
   /** Which model answers which AI feature (ADR-015). */
   ai: AiSettings
 }

@@ -253,4 +253,37 @@ describe('createOllamaProvider', () => {
     const ollama = createOllamaProvider({ url: () => url })
     expect(await failure(ollama.warm('nope'))).toMatchObject({ kind: 'not-found' })
   })
+
+  it('lists the models in memory and unloads one, for a full-screen game (ADR-029)', async () => {
+    const { url, seen } = await fakeOllama((call, res) => {
+      // /api/ps as Ollama 0.40.0 answered on Paul's PC (2026-10-07), trimmed.
+      if (call.path === '/api/ps') {
+        send(res, 200, {
+          models: [
+            {
+              name: 'qwen3.5:9b',
+              model: 'qwen3.5:9b',
+              size: 5589560196,
+              size_vram: 5589560196,
+              expires_at: '2026-10-07T19:24:39.3228059+08:00',
+              context_length: 4096
+            }
+          ]
+        })
+      } else send(res, 200, { model: 'qwen3.5:9b', done: true, done_reason: 'unload' })
+    })
+    const ollama = createOllamaProvider({ url: () => url, keepAlive: () => '15m' })
+    expect(await ollama.loaded()).toEqual(['qwen3.5:9b'])
+    await ollama.unload('qwen3.5:9b')
+    // keep_alive 0 with no prompt: unload now, whatever keep warm says.
+    expect(seen.map((call) => [call.method, call.path, call.body])).toEqual([
+      ['GET', '/api/ps', undefined],
+      ['POST', '/api/generate', { model: 'qwen3.5:9b', keep_alive: 0 }]
+    ])
+  })
+
+  it('reports offline when Ollama is closed and nothing can be loaded', async () => {
+    const ollama = createOllamaProvider({ url: () => 'http://127.0.0.1:1' })
+    expect(await failure(ollama.loaded())).toMatchObject({ kind: 'offline' })
+  })
 })

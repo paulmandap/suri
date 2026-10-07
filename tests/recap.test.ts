@@ -197,7 +197,7 @@ const tick = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0
 /** Turn n's project is `t<n>`, so a call shows which turn it is about. */
 function setup(
   answer: (n: number, call: Call) => RecapReply | Error | Promise<RecapReply>,
-  opts: { busy?: () => boolean; empty?: number[] } = {}
+  opts: { busy?: () => boolean; held?: () => boolean; empty?: number[] } = {}
 ): {
   writer: ReturnType<typeof createRecapWriter>
   calls: Call[]
@@ -212,6 +212,7 @@ function setup(
     source: (id) => (opts.empty?.includes(id) ? null : { ...SOURCE, project: `t${id}` }),
     save: (id, update) => saved.push([id, update]),
     busy: opts.busy,
+    held: opts.held,
     log: (line) => logs.push(line)
   })
   return { writer, calls, saved, logs }
@@ -345,6 +346,55 @@ describe('createRecapWriter', () => {
     pending.at(-1)?.resolve(REPLY)
     await tick()
     await tick()
+    expect(saved.at(-1)?.[1].state).toBe('done')
+  })
+
+  it('waits out a full-screen game, however often one comes (ADR-029)', async () => {
+    let held = true
+    let busy = false
+    const pending: ReturnType<typeof deferred<RecapReply>>[] = []
+    const { writer, calls, saved } = setup(
+      () => {
+        const d = deferred<RecapReply>()
+        pending.push(d)
+        return d.promise
+      },
+      { held: () => held, busy: () => busy }
+    )
+    writer.queue(1)
+    await tick()
+    expect(calls).toEqual([])
+    // More games than MAX_YIELDS: a game never makes a recap run anyway.
+    for (let i = 0; i < 5; i++) {
+      held = false
+      writer.nudge()
+      await tick()
+      held = true
+      writer.nudge()
+      expect(calls.at(-1)?.signal?.aborted).toBe(true)
+      pending.at(-1)?.resolve(REPLY)
+      await tick()
+      await tick()
+    }
+    expect(calls).toHaveLength(5)
+    expect(saved.map(([, u]) => u.state)).toEqual(['pending'])
+    held = false
+    writer.nudge()
+    await tick()
+    // The games used none of its turns: a risk check still makes it give way.
+    busy = true
+    writer.nudge()
+    expect(calls.at(-1)?.signal?.aborted).toBe(true)
+    pending.at(-1)?.resolve(REPLY)
+    await tick()
+    await tick()
+    busy = false
+    writer.nudge()
+    await tick()
+    pending.at(-1)?.resolve(REPLY)
+    await tick()
+    await tick()
+    expect(calls).toHaveLength(7)
     expect(saved.at(-1)?.[1].state).toBe('done')
   })
 

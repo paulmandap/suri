@@ -118,7 +118,10 @@ export type RecapResult = { ok: true; recap: Recap } | { ok: false; note: string
 export interface RecapWriter {
   /** Writes the turn's recap when its turn comes. `onDone` hears how it went. */
   queue(turnId: number, onDone?: (result: RecapResult) => void): void
-  /** Call when approvals change: a recap waits during a risk check, and stops if one starts. */
+  /**
+   * Call when approvals change or a game comes and goes: a recap waits during
+   * a risk check or a game, and stops if one starts.
+   */
   nudge(): void
   /** Quit: stops the current call. Unwritten recaps stay pending for the next start. */
   stop(): void
@@ -136,17 +139,31 @@ interface Job {
   yields: number
 }
 
+interface Running {
+  job: Job
+  controller: AbortController
+  /** Its call stopped to give way; it goes back to the front of the line. */
+  yielded: boolean
+  /** It gave way to a game, which doesn't count against MAX_YIELDS. */
+  held?: boolean
+}
+
 export function createRecapWriter(opts: {
   router: Pick<AIRouter, 'generateJSON'>
   source: (turnId: number) => RecapSource | null
   save: (turnId: number, update: RecapUpdate) => void
   /** True while a risk check runs: Paul is waiting on that one, nobody waits on a recap. */
   busy?: () => boolean
+  /**
+   * True while a full-screen game has the graphics card (ADR-029): recaps
+   * wait, however long it takes, and one already running stops and waits too.
+   */
+  held?: () => boolean
   log?: (line: string) => void
   timeoutMs?: number
 }): RecapWriter {
   const jobs: Job[] = []
-  let current: { job: Job; controller: AbortController; yielded: boolean } | null = null
+  let current: Running | null = null
   let stopped = false
 
   const finish = (job: Job, result: RecapResult): void => {
@@ -192,7 +209,7 @@ export function createRecapWriter(opts: {
   }
 
   const pump = (): void => {
-    if (current || stopped || opts.busy?.()) return
+    if (current || stopped || opts.held?.() || opts.busy?.()) return
     const job = jobs.shift()
     if (!job) return
     let source: RecapSource | null = null
@@ -206,14 +223,14 @@ export function createRecapWriter(opts: {
       pump()
       return
     }
-    const run = { job, controller: new AbortController(), yielded: false }
+    const run: Running = { job, controller: new AbortController(), yielded: false }
     current = run
     void write(source, run.controller.signal).then((result) => {
       current = null
       if (stopped) return
       if (run.yielded) {
-        // Its call gave way to a risk check: first in line again.
-        job.yields++
+        // Its call gave way to a risk check or a game: first in line again.
+        if (!run.held) job.yields++
         jobs.unshift(job)
       } else {
         finish(job, result)
@@ -243,6 +260,12 @@ export function createRecapWriter(opts: {
 
     nudge() {
       const run = current
+      if (run && !run.yielded && opts.held?.()) {
+        run.yielded = true
+        run.held = true
+        run.controller.abort()
+        return
+      }
       if (run && !run.yielded && run.job.yields < MAX_YIELDS && opts.busy?.()) {
         run.yielded = true
         run.controller.abort()
