@@ -9,7 +9,7 @@ export const DEFAULT_PORT = 47821
 export const SETTINGS_FILE = 'settings.json'
 
 // PowerShell 5.1 writes a UTF-8 BOM; strip it before parsing.
-const BOM = new RegExp('^' + String.fromCharCode(0xfeff))
+export const BOM = new RegExp('^' + String.fromCharCode(0xfeff))
 
 const routeSchema = z
   .object({ provider: z.enum(['ollama', 'gemini']), model: z.string() })

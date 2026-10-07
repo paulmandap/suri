@@ -8,6 +8,9 @@ tsconfig.*.json
 # Captured hook payloads stay exactly as recorded.
 tests/fixtures/
 
+# Written by `npm run notices`; --check compares it byte for byte.
+THIRD_PARTY_NOTICES.md
+
 # Written by `npm run eval:risk`; formatting them would fight the next run.
 evals/results/
 

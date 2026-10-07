@@ -1,12 +1,12 @@
 # Project state
 
-_Last updated: 2026-10-07 (Suri stays out of full-screen games, ADR-029; the screen helper and push-to-talk moved to after Phase 8)_
+_Last updated: 2026-10-07 (Phase 8 built: uninstall window, Gemini without the SDK, CI and draft releases, licences, README; version 1.0.0)_
 
 Read `CLAUDE.md` first. The plan is in `~/.claude/plans/i-want-to-build-zany-gosling.md` (local only, not in the repo).
 
 ## Where we are
 
-**Suri now stays out of full-screen games** (ADR-029): while a game or another app fills the screen, the island hides and stays silent, AI work waits, and Suri's model leaves the graphics card; what waited shows (and chirps) when the game is gone. **Phase 7 is built: drop a file on the island and ask about it** (ADR-027), and most known issues are fixed (ADR-024 to ADR-028). Paul chose (2026-10-07) to build the screen helper and push-to-talk **after Phase 8**, as v1.1. **Next is Phase 8** (ship and resume), after Paul's short checks (Next → 1 and 2).
+**Phase 8's code is built** (ADR-030 to ADR-032): uninstalling asks about the hooks and the data in a window, Gemini runs on plain `fetch` (the app's code went from 32.6 MB to 8.6 MB), GitHub Actions checks every push on Windows and turns a `v*` tag into a draft release, the installer carries the third-party licences, and the README is real. The version is 1.0.0. **What's left is Paul's:** the short checks (Next → 1, 2 and 3), a demo GIF, then tagging `v1.0.0`. Before this, Suri learned to stay out of full-screen games (ADR-029). The screen helper and push-to-talk come after, as v1.1.
 
 | Phase | Status |
 |---|---|
@@ -19,8 +19,18 @@ Read `CLAUDE.md` first. The plan is in `~/.claude/plans/i-want-to-build-zany-gos
 | 6 Recap, history, digest | ✅ Done |
 | 7 Drop a file, ask a question | ✅ Done (a real drag from Explorer left for Paul) |
 | Stay out of full-screen games (ADR-029) | ✅ Done (a check with a real game left for Paul) |
-| 8 Ship and resume | Next |
+| 8 Ship and resume | ✅ Built (Paul: install check, demo GIF, tag `v1.0.0`) |
 | v1.1: Screen helper + push-to-talk | After Phase 8 (Paul, 2026-10-07; ADR-010, ADR-011) |
+
+## Phase 8 results (ADR-030, ADR-031, ADR-032)
+
+- **Uninstall window** (ADR-031, `src/main/uninstall.ts`, `src/renderer/src/uninstall/`, `build/installer.nsh`): the Windows uninstaller runs `suri.exe --uninstall` and waits (not for updates or `/S`). The window shows Suri's hooks with the same preview and Remove button as Settings, and a switch (off by default) to delete the history, settings and saved key. Suri deletes its own files by name; the whole `%APPDATA%\Suri` folder only when it's the default one. The run also removes the Start with Windows entry (the app id now lives in `src/main/app-id.ts`, which both runs use). Electron's own files for this run go to `%TEMP%\suri-uninstall`.
+- **Gemini without the SDK** (ADR-030): `src/main/ai/gemini.ts` calls the REST API with `fetch` and sends the same requests the SDK did (recorded first, pinned by tests). `@google/genai` and about 25 packages are gone.
+- **CI** (ADR-032, `.github/workflows/ci.yml`): typecheck, lint, tests and the notices check on `windows-latest` for every push and pull request; a `v*` tag that matches `package.json` builds the installer and creates a **draft** release. Actions pinned to commits.
+- **Licences:** `npm run notices` writes `THIRD_PARTY_NOTICES.md` (16 packages, including pdf.js inside unpdf); the installer puts it, Suri's licence and the mascot terms next to `suri.exe`. koffi's sources and docs stay out of the installer.
+- **README** rewritten for GitHub: what it does, a Mermaid diagram, the eval numbers, security notes, install and uninstall, development. A spot for the demo GIF is left as a comment.
+- **Verified:** typecheck, lint, the build and **643 unit tests** (10 more: Gemini's exact request bodies, thinking parts, a blocked prompt, Windows line endings and an error mid-stream, model pages; Suri's data folder in temp folders). The SDK's requests were recorded through a fake fetch, then the new code's: same URLs, methods and bodies. Live Gemini: the model list worked (33 models); two answer calls got the free-tier 429 (shown as "rate limit", as designed). **The uninstall window end to end** in the packaged app on scratch folders (`SURI_DATA_DIR`, `CLAUDE_CONFIG_DIR`), driven over the DevTools protocol with real input events: script calls without a click refused; Preview removal → Remove hooks left the scratch settings.json exactly as before the hooks, with a backup; the data switch → Finish deleted Suri's files only; exit code 0. A temporary Start with Windows entry under Suri's id was removed by the run (found a bug first: the uninstall run didn't set the app id). `npm run build:win` builds `suri-1.0.0-setup.exe` (about 113 MB) with the uninstall hook in it.
+- **Not run:** a real install and uninstall through Windows (it would install Suri on this PC; Next → 3), the CI workflow (its first run is the next push), a live Gemini answer through the new code.
 
 ## Staying out of full-screen games (ADR-029)
 
@@ -149,22 +159,25 @@ Read `CLAUDE.md` first. The plan is in `~/.claude/plans/i-want-to-build-zany-gos
 
 1. **Paul: two minutes with the file panel.** With Suri running, hover the island → **+ Ask a file**, drag a PDF from Explorer onto it, ask something. Then **Choose a file…** once, and History → **Save as .md** once. Tell Claude if anything is off.
 2. **Paul: one game check (about 3 minutes, ADR-029).** With Suri running and Dota 2 open in full screen: in a terminal, `npm run replay -- permission --hold 60000`, then switch to the game within a few seconds. The card should vanish within a second, with no sound. Hover the tray icon: "Staying quiet: dota2.exe is full screen". Leave the game after about 10 s: the card comes back with a chirp. Tell Claude if the game wasn't detected (and which display mode it uses). Also: during the 2026-10-07 test a card got an Allow click about 3 s after it appeared over Paul's browser; tell Claude whether that was on purpose.
-3. **Phase 8: ship and resume** (plan, Phase 8): the installer with an uninstall step (hooks and history), GitHub Actions, the README with a demo, and the resume bullets. Also decide about `@google/genai` (it brings unused packages; plain `fetch` would do), leave koffi's docs and C++ sources out of the installer, and list third-party licences (koffi is MIT).
-4. **The hooks are installed** on Paul's settings (seen 2026-10-06: all 11 entries, and this chat showed on the island). Two small checks are left:
+3. **Paul: install and uninstall once (about 5 minutes, ADR-031).** `npm run build:win`, then run `dist\suri-1.0.0-setup.exe` (SmartScreen: More info → Run anyway). It installs for you only and starts Suri with your real settings and history (the same `%APPDATA%\Suri` as `npm run dev`). Look at the tray and the island. Then Windows Settings → Apps → Suri → Uninstall: the Uninstall window should appear. **To keep your setup, click Finish without removing the hooks and with the data switch off**, because the installed app and `npm run dev` share the same hooks and history. Tell Claude what you saw.
+4. **Paul: ship v1.0.0.** Record a 30–60 s demo with `SURI_ALLOW_CAPTURE=1` (Suri is hidden from capture otherwise), save it as `docs/media/demo.gif` and replace the comment near the top of the README. Push, and check the first CI run on GitHub is green. Then `git tag v1.0.0` and `git push origin v1.0.0`: CI builds the installer into a draft release; read it over and publish it.
+5. **Resume and portfolio:** resume bullets with real numbers were drafted in the chat on 2026-10-07. Adding Suri to Paul's portfolio site is a separate project: ask Paul first.
+6. **The hooks are installed** on Paul's settings (seen 2026-10-06: all 11 entries, and this chat showed on the island). Two small checks are left:
    1. Quit Suri and send one prompt: you should see "Stop hook error" once (expected, ADR-002).
    2. In `sandbox/`, check that each tool shows up once on the island, not twice. The Claude Code docs say identical hooks run once; if you see doubles, tell Claude and delete the `hooks` block in `sandbox/.claude/settings.local.json`.
-5. **Paul: the VS Code check (about 3 minutes),** in any project:
+7. **Paul: the VS Code check (about 3 minutes),** in any project:
    1. Ask Claude Code: `run the command: echo hello-vscode`. Suri shows the approval card. Click **Allow**. Does the command run without you clicking anything in VS Code?
    2. Ask again and click **Deny**. What does Claude say?
    3. Ask for `git push --force` in a repo with no remote. Does Suri's card appear (safety net), or only VS Code's own prompt?
    4. Quit Suri (tray → Quit Suri) and ask once more. What does VS Code show?
    5. Tell Claude what you saw. It goes into `docs/spike-hooks.md` and ADR-002 / ADR-012.
-6. **After Phase 8 (v1.1): the screen helper and push-to-talk** (ADR-010, ADR-011), each with its own spike first.
-7. **Paul, when Gemini isn't overloaded: the Gemini evals** (about 20 minutes, paced for the free tier; the key is already in the VS Code terminal): `npm run eval:digest -- --models gemini-3.8-flash`, then the same with `eval:files`, `eval:recap` and `eval:risk`. The digest and file questions use Gemini by default, so these two matter most.
+8. **Paul, when Gemini isn't rate-limited: the Gemini evals** (about 20 minutes, paced for the free tier; the key is already in the VS Code terminal): `npm run eval:digest -- --models gemini-3.8-flash`, then the same with `eval:files`, `eval:recap` and `eval:risk`. The digest and file questions use Gemini by default, so these two matter most. They're also the first real Gemini answers through the new `fetch` code (ADR-030).
+9. **v1.1: the screen helper and push-to-talk** (ADR-010, ADR-011), each with its own spike first.
 
 ## How to run
 
 - `npm install` · `npm run dev` · `npm test` · `npm run typecheck` · `npm run lint` · `npm run build`
+- `npm run build:win` (the installer in `dist/`) · `npm run notices` after any dependency change (CI fails if `THIRD_PARTY_NOTICES.md` is stale) · `suri --uninstall` opens the Uninstall window (try it with `SURI_DATA_DIR` and `CLAUDE_CONFIG_DIR` pointing at scratch folders)
 - Electron 44 downloads its ~100 MB binary the first time it runs, so the first `npm run dev` on a fresh clone takes longer.
 - `npm run sandbox:hooks` (needs Suri started once) · `npm run replay -- session|permission|risky|explain|error|multi|workday|end [--hold ms] [--record]` (`--record` saves the replay in History and writes recaps)
 - `npm run eval:risk` and `npm run eval:recap` (live models; see `evals/README.md`). `-- --models a,b` for some models, `-- --limit 5` for a quick check that saves nothing, `-- --report` to rebuild the report from saved runs (after a rule change, say).
@@ -186,8 +199,11 @@ Read `CLAUDE.md` first. The plan is in `~/.claude/plans/i-want-to-build-zany-gos
 - File questions: Gemini gets PDF text only, without images or layout, because a raw PDF can't be redacted (ADR-027). A scanned PDF has no text and is refused.
 - Text that hides outside a comment (an `echo`, a heredoc, a commit message) still reaches the risk model; the rules stay the floor.
 - The recap rubric was clarified after looking at the eval's cases (ADR-026), so its gain is a little flattered; the 7b got two cases worse. New cases written later would be the fair test.
-- `node:sqlite` is marked experimental in Node; the tests hide Node 22's warning. No delete-on-uninstall yet for the history or the hooks (Phase 8): use Settings → Delete history… and Remove hooks first.
-- `@google/genai` brings `google-auth-library`, `protobufjs` and `ws` along (unused with an API key), which adds to the installer's size. Phase 8.
+- `node:sqlite` is marked experimental in Node; the tests hide Node 22's warning.
+- **Uninstall (ADR-031) not run through Windows yet** (Next → 3). A silent uninstall (`/S`) skips the window, so the hooks stay; the README says to use Windows Settings → Apps. Settings backups next to `~/.claude/settings.json` are kept (they're Claude Code's folder). Deleting the data from a test folder (`SURI_DATA_DIR`) leaves Electron's caches there.
+- **The installer is unsigned**, so SmartScreen warns on first run. About 113 MB, nearly all Electron.
+- **Gemini through `fetch` (ADR-030) hasn't given a live answer yet**: the model list worked, but the free tier was rate-limited on 2026-10-07. The requests match the SDK's byte for byte. Next → 8.
+- **The CI workflow hasn't run yet** (it can't run locally). If the first run fails, the Windows runner differs from this PC somewhere; the release job also needs the repository's Actions to allow `contents: write`.
 - With the hooks installed, every project shows "Stop hook error" once per turn while Suri is closed (ADR-002). Start with Windows (installed app) makes that rare.
 - Not verified live yet: that Claude Code runs the sandbox's identical hook only once, and that a running session picks up new hooks without a restart. The docs say both; Next → 4 checks them.
 - Not confirmed yet in VS Code: whether a held PermissionRequest blocks VS Code's own dialog, and whether a PreToolUse `"ask"` leads to Suri's card or only VS Code's prompt. The VS Code check (Next → 5) answers both.

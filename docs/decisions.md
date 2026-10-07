@@ -391,3 +391,42 @@ The 9b (5.6 GB at Ollama's 4k context) and the 7b (4.7 GB) can't share the 8 GB 
 - **A switch,** Settings → General → "Stay out of full-screen games", on by default. The tray says "Staying quiet: dota2.exe is full screen".
 
 **Consequences.** No pop-ups, chirps or model loads over a game, and the game gets the graphics card back. The first risk check after a game loads the model again (about 8–13 s); the card shows the rule's level meanwhile. A browser playing a full-screen video counts as a game, which is wanted. A program that runs Claude Code and isn't on the list goes quiet in full screen; the list is one line to extend. Verified end to end in the packaged app with a full-screen window and a fake Ollama: the held request stayed hidden and silent, the model was unloaded and no risk call was made during the game, and the card came back with the AI's answer about two seconds after.
+
+## ADR-030 — Gemini through plain fetch, not the SDK
+**Date:** 2026-10-07 · **Status:** Accepted (Paul's pick). Supersedes ADR-015's choice of the `@google/genai` SDK; everything else in ADR-015 stands.
+
+**Context.** Suri makes three kinds of Gemini calls: an answer as JSON, a streamed answer, and the list of models. The SDK and what it brings (a web-streams polyfill, protobufjs, Google's auth library and more) were about 28 MB of the app's 32.6 MB of code, none of it needed with an API key.
+
+**Decision.** `src/main/ai/gemini.ts` calls the REST API with `fetch`: `models/{model}:generateContent`, `:streamGenerateContent?alt=sse` (server-sent events), and `models?pageSize=100` with its pages. Before the SDK was removed, its requests were recorded through a fake fetch, and the new code sends the same URLs, methods and bodies (the tests pin them). Differences: no SDK user-agent headers, and `redirect: 'manual'`, so a redirect can never carry the key elsewhere. The key goes in the `x-goog-api-key` header, never the URL; the host stays pinned in code; replies are checked with Zod; thinking parts are left out; an error sent mid-stream ends the answer with a reason; the error kinds and the key scrubbing are as before.
+
+**Consequences.** The app's code went from 32.6 MB to 9.5 MB (8.6 MB with ADR-032's koffi trim), and about 25 packages fewer to trust. Live on 2026-10-07: the model list worked with Paul's key (33 models); both answer calls got Gemini's free-tier 429, which came back as `rate-limit` as designed, so a real JSON and streamed answer through the new code is still to be seen (the Gemini evals will show it).
+
+## ADR-031 — Uninstalling asks about the hooks and the data, in a window
+**Date:** 2026-10-07 · **Status:** Accepted (Paul's pick)
+
+**Context.** If Suri's hooks stay in `~/.claude/settings.json` after the app is gone, every Claude Code turn shows "Stop hook error". CLAUDE.md allows changes to that file only after a shown diff and a click. History, settings and the saved key live in `%APPDATA%\Suri`, and a "Start with Windows" entry would point at a deleted app.
+
+**Options.** Ask in a window · leave everything and tell users to remove the hooks first · remove the hooks silently (breaks the diff-and-click rule).
+
+**Decision.**
+- **The uninstaller runs `suri.exe --uninstall` and waits** (`build/installer.nsh`, electron-builder's `customUnInstall`, after it has closed a running Suri and before it deletes any file). Not for an update (`--updated`), and not for a silent uninstall (`/S`), where nobody is there to ask.
+- **A fourth sandboxed window** (`src/main/uninstall.ts`, `src/renderer/src/uninstall/`), built like Settings: its own preload with four calls, the sender checked, Zod on the preview id. The hooks part reuses the Settings installer and its preview panel, so the diff, backup, fingerprint, atomic write and click check are the same tested code. Removing, finishing and deleting all need a real click.
+- **Data:** a switch, off by default. Suri deletes its own files by name (`settings.json`, `history.db`, `secrets.json` and their copies). The whole folder, Electron's caches included, goes only when it is the default `%APPDATA%\Suri`, so a wrong path can't take anything else with it. During this run Electron keeps its own files in `%TEMP%\suri-uninstall` (one fixed folder, emptied first), so nothing in Suri's folder is in use.
+- **Start with Windows:** the run removes Suri's entry. Its name comes from the app id, so the id moved to `src/main/app-id.ts` and both runs set it; without that, the uninstall run would have removed an entry with a different name.
+- Closing the window keeps everything; the uninstaller carries on either way.
+
+**Consequences.** Verified with the packaged app on scratch folders, driven over the DevTools protocol with real input events: script calls without a click were refused; Preview removal, then Remove hooks, left the scratch settings.json exactly as it was before the hooks (another tool's hook and a setting kept), with a dated backup; the data switch and Finish deleted Suri's files and nothing else; the app quit with code 0. A temporary Start with Windows entry under Suri's id was removed by the run. Not run: a real install and uninstall through Windows (Paul's check), since it would install Suri on this PC.
+
+## ADR-032 — Shipping: Windows CI, a draft release on a tag, licences in the installer
+**Date:** 2026-10-07 · **Status:** Accepted
+
+**Context.** Phase 8: an installer others can run, checks on every push, and the licences of what ships inside.
+
+**Decision.**
+- **GitHub Actions on `windows-latest`** (`.github/workflows/ci.yml`): `npm ci`, typecheck, lint, the unit tests and the notices check on every push and pull request, with Electron's binary download skipped (nothing starts it). Actions are pinned to commit hashes, and the workflow's token is read-only except for the release job.
+- **A `v*` tag** builds the installer (`--publish never`) and creates a **draft** GitHub release with it; Paul reads it over and publishes by hand. The tag must match `package.json`'s version, or the job stops. Version 1.0.0 for the first release.
+- **Unsigned for now.** SmartScreen asks once (More info → Run anyway); the README says so. Signing can come later.
+- **Licences:** `npm run notices` writes `THIRD_PARTY_NOTICES.md` from `package-lock.json` (the main process's dependencies and what the windows' code bundles in, for Windows x64), plus pdf.js, which unpdf carries inside itself under Apache-2.0. CI fails if the file is out of date. The installer puts it next to `suri.exe` with Suri's licence and the mascot art's terms.
+- **A slimmer installer:** koffi's C++ sources, headers, build tool and docs stay out (its JavaScript and `koffi.node` are all it runs).
+
+**Consequences.** A tag is all a release takes, and nothing goes public without Paul. The installer is about 113 MB, almost all of it Electron. The workflow can't be run locally; its first run on GitHub is its test.

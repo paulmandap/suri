@@ -1,5 +1,5 @@
 import { app, clipboard, dialog, ipcMain, safeStorage, shell, type BrowserWindow } from 'electron'
-import { existsSync, writeFileSync } from 'node:fs'
+import { existsSync, rmSync, writeFileSync } from 'node:fs'
 import { readFile, stat } from 'node:fs/promises'
 import { basename, dirname, join, resolve } from 'node:path'
 import { electronApp } from '@electron-toolkit/utils'
@@ -36,6 +36,7 @@ import { createRecapWriter } from './ai/recap'
 import { createRiskExplainer } from './ai/risk'
 import { createAIRouter } from './ai/router'
 import { createModelWarmer } from './ai/warm'
+import { APP_ID } from './app-id'
 import { createApprovalBroker, safetyNetAnswer } from './approvals'
 import { loadForegroundProbe } from './foreground'
 import { historyFile, openHistory } from './history'
@@ -57,18 +58,34 @@ import { createSecretStore } from './secrets'
 import { loadSettings, updateSettings } from './settings'
 import { createSettingsWindow, registerSettingsIpc } from './settings-window'
 import { createTray, type SuriTray } from './tray'
+import { UNINSTALL_FLAG, runUninstall } from './uninstall'
 
 // One fixed folder for dev and installed builds, so scripts/sandbox-hooks.mjs
 // can find settings.json. SURI_DATA_DIR points a test run at a scratch folder
 // instead (its own settings, history and single-instance lock). Must run
 // before the app is ready.
-const dataDir = process.env['SURI_DATA_DIR']
-app.setPath('userData', dataDir ? resolve(dataDir) : join(app.getPath('appData'), 'Suri'))
+const defaultDir = join(app.getPath('appData'), 'Suri')
+const dataDir = process.env['SURI_DATA_DIR'] ? resolve(process.env['SURI_DATA_DIR']) : defaultDir
+// The uninstaller's run (ADR-031) keeps Electron's own files in a temp folder,
+// so nothing in Suri's folder is in use and it can be deleted. One fixed
+// folder, emptied first, so runs never pile up in Temp.
+const uninstalling = process.argv.includes(UNINSTALL_FLAG)
+const scratchDir = join(app.getPath('temp'), 'suri-uninstall')
+if (uninstalling) rmSync(scratchDir, { recursive: true, force: true })
+app.setPath('userData', uninstalling ? scratchDir : dataDir)
 
 const log = (line: string): void => console.warn(`[suri] ${line}`)
 const DAY_MS = 24 * 60 * 60_000
 
-if (!app.requestSingleInstanceLock()) {
+if (uninstalling) {
+  app
+    .whenReady()
+    .then(() => runUninstall({ dataDir, defaultDir, log }))
+    .catch((err) => {
+      console.error('[suri] uninstall window failed', err)
+      app.quit()
+    })
+} else if (!app.requestSingleInstanceLock()) {
   app.quit()
 } else {
   app
@@ -86,7 +103,7 @@ app.on('window-all-closed', () => {})
 const DECISIONS: readonly ApprovalDecision[] = ['allow', 'deny', 'ask']
 
 async function start(): Promise<void> {
-  electronApp.setAppUserModelId('io.github.paulmandap.suri')
+  electronApp.setAppUserModelId(APP_ID)
   const userData = app.getPath('userData')
   let settings: SuriSettings = loadSettings(userData)
   const sessions = createSessionsStore()

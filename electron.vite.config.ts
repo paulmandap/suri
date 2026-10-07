@@ -21,7 +21,8 @@ export default defineConfig({
         input: {
           index: resolve('src/preload/index.ts'),
           settings: resolve('src/preload/settings.ts'),
-          history: resolve('src/preload/history.ts')
+          history: resolve('src/preload/history.ts'),
+          uninstall: resolve('src/preload/uninstall.ts')
         }
       }
     }
@@ -42,7 +43,8 @@ export default defineConfig({
         input: {
           index: resolve('src/renderer/index.html'),
           settings: resolve('src/renderer/settings.html'),
-          history: resolve('src/renderer/history.html')
+          history: resolve('src/renderer/history.html'),
+          uninstall: resolve('src/renderer/uninstall.html')
         }
       }
     }

@@ -9,13 +9,31 @@ files:
   - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,CHANGELOG.md,README.md}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json,vitest.config.ts}'
-  - '!{CLAUDE.md,PROJECT_STATE.md}'
+  - '!{CLAUDE.md,PROJECT_STATE.md,THIRD_PARTY_NOTICES.md}'
+  - '!.github/**'
   - '!{tests,evals,spike,sandbox,docs}/**'
   # The sprites are bundled into out/renderer; the sheets and cut-outs stay out.
   - '!assets/**'
   - '!scripts/**'
+  # koffi (ADR-029) runs from its JavaScript and the prebuilt koffi.node; its
+  # C++ sources, headers, build tool and docs are only for building it.
+  - '!node_modules/koffi/{doc,lib,vendor}/**'
+  - '!node_modules/koffi/src/koffi/src/abi/**'
+  - '!node_modules/koffi/**/*.{cc,hh,inc,def,md,d.ts}'
+  - '!node_modules/koffi/**/CMakeLists.txt'
+  - '!node_modules/koffi/cnoke.cjs'
+  - '!node_modules/@koromix/*/*/*.lib'
 asarUnpack:
   - resources/**
+# Next to suri.exe: Suri's licence, the mascot art's terms, and the licences
+# of everything bundled in (`npm run notices`).
+extraFiles:
+  - from: LICENSE
+    to: LICENSE.suri.txt
+  - from: assets/mascot/LICENSE.md
+    to: LICENSE.mascot.md
+  - from: THIRD_PARTY_NOTICES.md
+    to: THIRD_PARTY_NOTICES.md
 win:
   executableName: suri
   target: nsis

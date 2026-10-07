@@ -1,0 +1,64 @@
+# Checks every push and pull request on Windows, the only system Suri runs on.
+# A version tag (v1.0.0) also builds the installer and puts it in a draft
+# GitHub release, for Paul to read over and publish by hand.
+# Actions are pinned to commits, so a moved tag can't change what runs here.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: windows-latest
+    env:
+      # The checks never start Electron, so skip its 100 MB download.
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          # The tests need Node 22.13+ for node:sqlite (ADR-020).
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      # No internet needed: loopback servers only (CLAUDE.md).
+      - run: npm test
+      - run: npm run notices -- --check
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: check
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+      - name: The tag matches package.json
+        run: |
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          if ("v$version" -ne $env:GITHUB_REF_NAME) {
+            throw "The tag is $env:GITHUB_REF_NAME but package.json says $version."
+          }
+      - run: npm ci
+      - run: npm run build
+      # Unsigned for now: Windows SmartScreen warns on first run.
+      - run: npx electron-builder --win --publish never
+      - name: Draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $installer = (Get-ChildItem dist/*-setup.exe).FullName
+          gh release create $env:GITHUB_REF_NAME $installer --draft --title "Suri $env:GITHUB_REF_NAME" --notes "Windows installer (per-user, unsigned: SmartScreen asks once). See README.md."

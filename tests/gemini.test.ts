@@ -3,8 +3,9 @@ import { z } from 'zod'
 import { createGeminiProvider } from '../src/main/ai/gemini'
 import { AIError } from '../src/main/ai/provider'
 
-// The real SDK with a fake fetch: no network. Response shapes follow the
-// Gemini REST API that @google/genai 2.27 calls.
+// Plain fetch to the Gemini REST API (ADR-030), with a fake fetch: no network.
+// The request bodies are the ones @google/genai 2.27 sent, recorded before the
+// SDK was taken out (2026-10-07), so Gemini sees no difference.
 
 const KEY = `AIza${'k'.repeat(35)}`
 const SCHEMA = z.object({ level: z.enum(['low', 'medium', 'high']), summary: z.string() })
@@ -13,6 +14,7 @@ interface Call {
   url: string
   method: string
   headers: Headers
+  redirect: RequestRedirect | undefined
   body: Record<string, unknown> | undefined
 }
 
@@ -26,6 +28,7 @@ function fakeFetch(respond: (call: Call, signal?: AbortSignal | null) => Promise
       url: String(input),
       method: init?.method ?? 'GET',
       headers: new Headers(init?.headers),
+      redirect: init?.redirect,
       body: init?.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : undefined
     }
     calls.push(call)
@@ -79,18 +82,54 @@ describe('createGeminiProvider', () => {
     expect(call.url).toContain('/v1beta/models/gemini-3.8-flash:generateContent')
     expect(call.url).not.toContain(KEY)
     expect(call.headers.get('x-goog-api-key')).toBe(KEY)
-    expect(call.body).toMatchObject({
-      contents: [{ parts: [{ text: 'ls' }] }],
-      systemInstruction: { parts: [{ text: 'Be brief.' }] },
+    expect(call.redirect).toBe('manual')
+    expect(call.body).toEqual({
+      contents: [{ parts: [{ text: 'ls' }], role: 'user' }],
+      systemInstruction: { parts: [{ text: 'Be brief.' }], role: 'user' },
       generationConfig: {
         temperature: 0,
         responseMimeType: 'application/json',
         responseJsonSchema: {
           type: 'object',
-          properties: { level: { enum: ['low', 'medium', 'high'] }, summary: { type: 'string' } }
+          properties: {
+            level: { type: 'string', enum: ['low', 'medium', 'high'] },
+            summary: { type: 'string' }
+          },
+          required: ['level', 'summary'],
+          additionalProperties: false
         }
       }
     })
+  })
+
+  it('leaves out a system instruction it wasn’t given, and any thinking in the answer', async () => {
+    const { fetch, calls } = fakeFetch(async () =>
+      json(200, {
+        candidates: [
+          {
+            content: {
+              parts: [
+                { text: 'Let me think about ls…', thought: true },
+                { text: '{"level":"low","summary":"Lists files."}' }
+              ]
+            }
+          }
+        ]
+      })
+    )
+    expect(await ask(createGeminiProvider({ apiKey: () => KEY, fetch }))).toEqual({
+      level: 'low',
+      summary: 'Lists files.'
+    })
+    expect(calls[0]!.body).not.toHaveProperty('systemInstruction')
+  })
+
+  it('fails with bad-output when Gemini blocks the prompt and sends no answer', async () => {
+    const { fetch } = fakeFetch(async () =>
+      json(200, { promptFeedback: { blockReason: 'SAFETY' } })
+    )
+    const error = await failure(ask(createGeminiProvider({ apiKey: () => KEY, fetch })))
+    expect(error.kind).toBe('bad-output')
   })
 
   it('talks only to Google’s Gemini API, whatever the environment says', async () => {
@@ -225,7 +264,42 @@ describe('createGeminiProvider', () => {
     })
     expect(text).toBe('Hello')
     expect(pieces).toEqual(['Hel', 'lo'])
-    expect(calls[0]!.url).toContain(':streamGenerateContent')
+    expect(calls[0]!.url).toMatch(/\/models\/gemini-3\.8-flash:streamGenerateContent\?alt=sse$/)
+    expect(calls[0]!.body).toEqual({
+      contents: [{ parts: [{ text: 'say hello' }], role: 'user' }],
+      generationConfig: {}
+    })
+  })
+
+  it('reads Windows line endings, and stops on an error sent mid-stream', async () => {
+    const stream = (events: string): Promise<Response> =>
+      Promise.resolve(
+        new Response(events, { status: 200, headers: { 'content-type': 'text/event-stream' } })
+      )
+    const crlf = fakeFetch(() => stream(`data: ${JSON.stringify(answer('Hi'))}\r\n\r\n`))
+    expect(
+      await createGeminiProvider({ apiKey: () => KEY, fetch: crlf.fetch }).streamText({
+        model: 'gemini-3.8-flash',
+        prompt: 'x'
+      })
+    ).toBe('Hi')
+
+    const broken = fakeFetch(() =>
+      stream(
+        `data: ${JSON.stringify(answer('Hal'))}\n\n` +
+          `data: ${JSON.stringify({ error: { code: 503, message: 'The model is overloaded.' } })}\n\n`
+      )
+    )
+    const error = await failure(
+      createGeminiProvider({ apiKey: () => KEY, fetch: broken.fetch }).streamText({
+        model: 'gemini-3.8-flash',
+        prompt: 'x'
+      })
+    )
+    expect(error).toMatchObject({
+      kind: 'unavailable',
+      message: 'Gemini stopped: The model is overloaded.'
+    })
   })
 
   it('lists only Gemini models that can generate text', async () => {
@@ -249,6 +323,31 @@ describe('createGeminiProvider', () => {
       detail: 'Key works · 2 models',
       models: ['gemini-2.5-flash', 'gemini-3.8-flash']
     })
+  })
+
+  it('follows the pages of the model list', async () => {
+    const { fetch, calls } = fakeFetch(async (call) =>
+      json(
+        200,
+        call.url.includes('pageToken=next')
+          ? {
+              models: [{ name: 'models/gemini-b', supportedGenerationMethods: ['generateContent'] }]
+            }
+          : {
+              models: [
+                { name: 'models/gemini-a', supportedGenerationMethods: ['generateContent'] }
+              ],
+              nextPageToken: 'next'
+            }
+      )
+    )
+    const gemini = createGeminiProvider({ apiKey: () => KEY, fetch })
+    expect(await gemini.listModels()).toEqual(['gemini-a', 'gemini-b'])
+    expect(calls.map((call) => [call.method, call.url])).toEqual([
+      ['GET', 'https://generativelanguage.googleapis.com/v1beta/models?pageSize=100'],
+      ['GET', 'https://generativelanguage.googleapis.com/v1beta/models?pageSize=100&pageToken=next']
+    ])
+    expect(calls[0]!.headers.get('x-goog-api-key')).toBe(KEY)
   })
 
   it('reports a failed test without throwing', async () => {

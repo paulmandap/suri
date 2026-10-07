@@ -1,7 +1,7 @@
 {
   "name": "suri",
   "productName": "Suri",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "description": "Suri, a meerkat lookout for your Claude Code sessions on Windows: live activity, one-click approvals and AI risk checks.",
   "main": "./out/main/index.js",
@@ -24,6 +24,7 @@
     "spike:hooks": "node spike/hook-logger.mjs",
     "sandbox:hooks": "node scripts/sandbox-hooks.mjs",
     "replay": "node scripts/replay-fixtures.mjs",
+    "notices": "node scripts/third-party-notices.mjs",
     "eval:risk": "node scripts/run-ts.mjs evals/run-risk-eval.ts",
     "eval:recap": "node scripts/run-ts.mjs evals/run-recap-eval.ts",
     "eval:digest": "node scripts/run-ts.mjs evals/run-digest-eval.ts",
@@ -31,7 +32,6 @@
   },
   "dependencies": {
     "@electron-toolkit/utils": "^4.0.0",
-    "@google/genai": "^2.27.0",
     "koffi": "^3.3.2",
     "unpdf": "^1.8.1",
     "zod": "^4.6.5"
