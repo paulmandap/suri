@@ -6,6 +6,7 @@
   "description": "Suri, a meerkat lookout for your Claude Code sessions on Windows: live activity, one-click approvals and AI risk checks.",
   "main": "./out/main/index.js",
   "author": "paulmandap",
+  "license": "MIT",
   "scripts": {
     "format": "prettier --write .",
     "lint": "eslint --cache .",
@@ -24,11 +25,14 @@
     "sandbox:hooks": "node scripts/sandbox-hooks.mjs",
     "replay": "node scripts/replay-fixtures.mjs",
     "eval:risk": "node scripts/run-ts.mjs evals/run-risk-eval.ts",
-    "eval:recap": "node scripts/run-ts.mjs evals/run-recap-eval.ts"
+    "eval:recap": "node scripts/run-ts.mjs evals/run-recap-eval.ts",
+    "eval:digest": "node scripts/run-ts.mjs evals/run-digest-eval.ts",
+    "eval:files": "node scripts/run-ts.mjs evals/run-file-qa-eval.ts"
   },
   "dependencies": {
     "@electron-toolkit/utils": "^4.0.0",
     "@google/genai": "^2.27.0",
+    "unpdf": "^1.8.1",
     "zod": "^4.6.5"
   },
   "devDependencies": {

@@ -37,7 +37,9 @@ export const aiPatchSchema = z.strictObject({
       model: z.string()
     })
     .refine((route) => isValidModel(route.provider, route.model))
-    .optional()
+    .optional(),
+  startOllama: z.boolean().optional(),
+  keepWarm: z.boolean().optional()
 })
 
 /** An API key as pasted: printable characters, no spaces, a sane length. */

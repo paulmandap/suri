@@ -9,9 +9,11 @@ interface Props {
   snapshot: IslandSnapshot | null
   now: number
   onOpen: (sessionId: string) => void
+  /** Opens the file panel (ADR-027). */
+  onAsk: () => void
 }
 
-export function ExpandedView({ snapshot, now, onOpen }: Props): React.JSX.Element {
+export function ExpandedView({ snapshot, now, onOpen, onAsk }: Props): React.JSX.Element {
   const sessions = snapshot?.sessions ?? []
   const hidden = sessions.length - MAX_ROWS
   return (
@@ -24,6 +26,14 @@ export function ExpandedView({ snapshot, now, onOpen }: Props): React.JSX.Elemen
           {sessions.length === 1 ? '1 session' : `${sessions.length} sessions`}
           {hidden > 0 ? ` · ${hidden} more` : ''}
         </span>
+        <button
+          type="button"
+          title="Ask about a file"
+          onClick={only(onAsk)}
+          className="rounded-full bg-white/10 px-2.5 py-0.5 text-[11.5px] text-white/80 hover:bg-white/15 hover:text-white"
+        >
+          + Ask a file
+        </button>
       </div>
       {sessions.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center text-center">

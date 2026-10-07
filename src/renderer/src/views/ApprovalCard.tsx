@@ -1,8 +1,9 @@
 import { motion, useReducedMotion } from 'motion/react'
+import { useEffect, useRef, useState } from 'react'
+import { ARM_MS, clickCounts } from '@shared/click-guard'
 import { approvalLevel, type DecisionFeedback } from '@shared/island-mode'
 import type { ApprovalDecision, PendingApproval, RiskLevel } from '@shared/types'
 import { formatCountdown, riskModelLabel, wantsTo } from '../lib/format'
-import { only } from '../lib/only'
 import { MascotBody } from '../mascot/Mascot'
 import { CardMascot } from './Cards'
 
@@ -24,6 +25,31 @@ export function ApprovalCard({ approval, queued, now, onDecide }: Props): React.
   const high = level === 'high'
   const ring = high ? 'ring-red-400/60' : 'ring-amber-300/50'
   const allowTone = high ? 'bg-amber-300 hover:bg-amber-200' : 'bg-white hover:bg-white/90'
+
+  // The click guard (ADR-028): the card remounts for each request, so these
+  // start over with it. The buttons light up once a click can count.
+  const shownAt = useRef<number | null>(null)
+  const lastMove = useRef<number | null>(null)
+  const [armed, setArmed] = useState(false)
+  const [hint, setHint] = useState(false)
+  useEffect(() => {
+    shownAt.current = performance.now()
+    const id = window.setTimeout(() => setArmed(true), ARM_MS)
+    return () => window.clearTimeout(id)
+  }, [])
+  // One handler for the three buttons; each names its decision in data-decision.
+  const click = (event: React.MouseEvent<HTMLButtonElement>): void => {
+    // Never reaches the island shape behind the card.
+    event.stopPropagation()
+    const decision = event.currentTarget.dataset['decision'] as ApprovalDecision
+    const shown = shownAt.current
+    if (shown === null || !clickCounts(shown, lastMove.current, performance.now())) {
+      setHint(true)
+      return
+    }
+    onDecide(decision)
+  }
+  const buttons = armed ? '' : 'opacity-40'
   return (
     <div className="relative flex h-full gap-3.5 px-4 pb-3 pt-3.5">
       <motion.div
@@ -56,28 +82,36 @@ export function ApprovalCard({ approval, queued, now, onDecide }: Props): React.
           {approval.detail}
         </div>
         <RiskBlock approval={approval} level={level} />
-        <div className="mt-auto flex items-center gap-2.5 pt-1.5">
+        <div
+          className="mt-auto flex items-center gap-2.5 pt-1.5"
+          onPointerMove={() => {
+            lastMove.current = performance.now()
+          }}
+        >
           <button
             type="button"
-            onClick={only(() => onDecide('ask'))}
-            className="text-[11px] text-white/45 underline-offset-2 hover:text-white/75 hover:underline"
+            data-decision="ask"
+            onClick={click}
+            className={`text-[11px] text-white/45 underline-offset-2 transition-opacity hover:text-white/75 hover:underline ${buttons}`}
           >
             Ask in Claude Code
           </button>
           <span className="text-[10.5px] tabular-nums text-white/30">
-            {formatCountdown(approval.expiresAt - now)}
+            {hint ? 'Move to a button, then click' : formatCountdown(approval.expiresAt - now)}
           </span>
-          <div className="ml-auto flex gap-1.5">
+          <div className={`ml-auto flex gap-1.5 transition-opacity ${buttons}`}>
             <button
               type="button"
-              onClick={only(() => onDecide('deny'))}
+              data-decision="deny"
+              onClick={click}
               className="rounded-full bg-white/10 px-4 py-1.5 text-[12px] hover:bg-red-500/35"
             >
               Deny
             </button>
             <button
               type="button"
-              onClick={only(() => onDecide('allow'))}
+              data-decision="allow"
+              onClick={click}
               className={`rounded-full px-4 py-1.5 text-[12px] font-medium text-black ${allowTone}`}
             >
               Allow

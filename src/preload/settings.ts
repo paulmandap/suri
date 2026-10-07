@@ -36,7 +36,15 @@ const api: SuriSettingsApi = {
   testAi: (provider) => ipcRenderer.invoke(SETTINGS_IPC.testAi, String(provider)),
   // One way only: the key goes to main to be encrypted and never comes back.
   saveGeminiKey: (key) => ipcRenderer.invoke(SETTINGS_IPC.saveGeminiKey, String(key)),
-  removeGeminiKey: () => ipcRenderer.invoke(SETTINGS_IPC.removeGeminiKey)
+  removeGeminiKey: () => ipcRenderer.invoke(SETTINGS_IPC.removeGeminiKey),
+  startOllama: () => ipcRenderer.invoke(SETTINGS_IPC.startOllama),
+  deleteHistory() {
+    // Deleting history can't be undone, so only Paul's click may ask for it.
+    if (!clicked()) {
+      return Promise.resolve({ ok: false, message: 'Only a click can delete the history.' })
+    }
+    return ipcRenderer.invoke(SETTINGS_IPC.deleteHistory)
+  }
 }
 
 contextBridge.exposeInMainWorld('suriSettings', api)

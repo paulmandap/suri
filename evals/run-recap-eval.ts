@@ -32,7 +32,7 @@ import {
 // fallback, so every score belongs to one model. Live models only: never part
 // of `npm test`.
 //
-//   npm run eval:recap                                 every planned model that's available
+//   npm run eval:recap                                 every planned local model that's available
 //   npm run eval:recap -- --models qwen2.5:7b-instruct,qwen3.5:9b
 //   npm run eval:recap -- --limit 3                    a quick check; nothing is saved
 //   npm run eval:recap -- --report                     rebuild the report from saved runs
@@ -45,6 +45,9 @@ const PLANNED = [
   'gemma4:12b',
   'gemini-3.8-flash'
 ]
+
+/** Gemini runs only when named in --models, so a key in the terminal can't spend quota by surprise. */
+const LOCAL = PLANNED.filter((model) => !model.startsWith('gemini'))
 
 const ROOT = process.cwd()
 const CASES_FILE = join(ROOT, 'evals', 'recap-cases.json')
@@ -258,7 +261,7 @@ function parseArgs(args: readonly string[]): Options {
     value('models')
       ?.split(',')
       .map((model) => model.trim())
-      .filter(Boolean) ?? PLANNED
+      .filter(Boolean) ?? LOCAL
   const limitText = value('limit')
   const limit = limitText === undefined ? null : Number(limitText)
   if (limit !== null && !(Number.isInteger(limit) && limit > 0)) {

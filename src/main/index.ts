@@ -1,9 +1,18 @@
 import { app, clipboard, dialog, ipcMain, safeStorage, shell, type BrowserWindow } from 'electron'
 import { existsSync, writeFileSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
+import { readFile, stat } from 'node:fs/promises'
+import { basename, dirname, join, resolve } from 'node:path'
 import { electronApp } from '@electron-toolkit/utils'
-import { applyAiPatch, type ProviderId } from '@shared/ai-config'
+import { KEEP_WARM_FOR, applyAiPatch, warmModel, type ProviderId } from '@shared/ai-config'
 import { buildDigestFacts, digestMarkdown } from '@shared/digest'
+import { MAX_FILE_BYTES, TEXT_EXTENSIONS, type AskStart, type LoadResult } from '@shared/file-qa'
+import {
+  askIdSchema,
+  copyTextSchema,
+  fileBytesSchema,
+  fileNameSchema,
+  questionSchema
+} from '@shared/file-qa-schemas'
 import { dayKey } from '@shared/history'
 import { HISTORY_IPC, type DaysView, type SaveResult } from '@shared/history-ipc'
 import { hookUrl } from '@shared/hook-config'
@@ -13,19 +22,27 @@ import { SETTINGS_IPC, type SettingsView, type UpdateResult } from '@shared/sett
 import type { GeneralPatch } from '@shared/settings-schemas'
 import type { ApprovalDecision, IslandSnapshot, SuriSettings } from '@shared/types'
 import { writeDigest } from './ai/digest'
+import { createFileChat } from './ai/file-qa'
 import { createGeminiProvider } from './ai/gemini'
 import { createOllamaProvider } from './ai/ollama'
 import type { AIProvider } from './ai/provider'
 import { createRecapWriter } from './ai/recap'
 import { createRiskExplainer } from './ai/risk'
 import { createAIRouter } from './ai/router'
+import { createModelWarmer } from './ai/warm'
 import { createApprovalBroker, safetyNetAnswer } from './approvals'
 import { historyFile, openHistory } from './history'
 import { createHistoryWindow, registerHistoryIpc } from './history-window'
 import { createHookServer, type HookHandlerOptions, type HookServer } from './hook-server'
 import { claudeSettingsFile, createInstaller } from './installer'
+import { ensureOllama, findOllamaApp, type OllamaStart } from './ollama-app'
 import { openProjectFolder } from './open-project'
-import { applyContentProtection, createOverlayWindow, setOverlayInteractive } from './overlay'
+import {
+  applyContentProtection,
+  createOverlayWindow,
+  setOverlayAsking,
+  setOverlayInteractive
+} from './overlay'
 import { createSessionsStore } from './sessions-store'
 import { createSecretStore } from './secrets'
 import { loadSettings, updateSettings } from './settings'
@@ -68,6 +85,8 @@ async function start(): Promise<void> {
   let settingsWindow: BrowserWindow | null = null
   let historyWindow: BrowserWindow | null = null
   let tray: SuriTray | null = null
+  // Looked up once: Settings only needs to know whether a Start button can work.
+  const ollamaApp = findOllamaApp()
 
   // The Gemini key, encrypted with Windows DPAPI. Only main ever reads it (ADR-015).
   const secrets = createSecretStore(userData, {
@@ -75,10 +94,28 @@ async function start(): Promise<void> {
     encrypt: (plain) => safeStorage.encryptString(plain),
     decrypt: (data) => safeStorage.decryptString(data)
   })
+  // keep_alive: while "keep warm" is on, Ollama holds the model 15 min after each call.
+  const ollama = createOllamaProvider({
+    url: () => settings.ai.ollamaUrl,
+    keepAlive: () => (settings.ai.keepWarm ? KEEP_WARM_FOR : undefined)
+  })
   const providers: Record<ProviderId, AIProvider> = {
-    ollama: createOllamaProvider({ url: () => settings.ai.ollamaUrl }),
+    ollama,
     gemini: createGeminiProvider({ apiKey: () => secrets.get('geminiApiKey') })
   }
+  // Loads the local model when Claude Code starts working, so the first risk
+  // check or recap doesn't wait for it (ADR-024).
+  const warmer = createModelWarmer({
+    warm: (model, signal) => ollama.warm(model, signal),
+    model: () => warmModel(settings.ai),
+    log
+  })
+  const startOllama = (): Promise<OllamaStart> =>
+    ensureOllama({
+      reachable: async () => (await ollama.test()).ok,
+      find: () => findOllamaApp(),
+      launch: async (app) => (await shell.openPath(app)) || null
+    })
   // Every AI feature asks the router: it picks the model from Settings and
   // takes these exact values (and pattern-matched secrets) out of cloud prompts.
   const router = createAIRouter({
@@ -106,7 +143,7 @@ async function start(): Promise<void> {
       if (outcome === 'allow' || outcome === 'deny') {
         sessions.answerPermission(approval.sessionId, outcome)
       }
-      history?.recordDecision(approval, outcome)
+      if (!approval.replayed) history?.recordDecision(approval, outcome)
     },
     explain: (input, signal) => riskExplainer.explain(input, signal)
   })
@@ -152,6 +189,7 @@ async function start(): Promise<void> {
     token: settings.token,
     isPaused: () => settings.paused,
     onEvent: (event, { signal }) => {
+      warmer.touch()
       sessions.apply(event)
       const turn = history?.record(event) ?? null
       if (event.hook_event_name === 'Stop' && turn !== null) recapTurn(event.session_id, turn)
@@ -214,7 +252,8 @@ async function start(): Promise<void> {
       ai: {
         settings: settings.ai,
         geminiKey: secrets.has('geminiApiKey') ? 'saved' : 'missing',
-        secureStorage: secrets.available()
+        secureStorage: secrets.available(),
+        ollamaApp: ollamaApp !== null
       }
     }
   }
@@ -246,13 +285,94 @@ async function start(): Promise<void> {
   const fromOverlay = (sender: Electron.WebContents): boolean =>
     overlay !== null && !overlay.isDestroyed() && sender === overlay.webContents
 
+  let islandReady = false
+  let askWaiting = false
   ipcMain.on(IPC.rendererReady, (event) => {
-    if (fromOverlay(event.sender)) event.sender.send(IPC.snapshot, snapshot())
+    if (!fromOverlay(event.sender)) return
+    event.sender.send(IPC.snapshot, snapshot())
+    islandReady = true
+    if (askWaiting) {
+      askWaiting = false
+      event.sender.send(IPC.openAsk)
+    }
   })
+  // Questions about a file (ADR-027). The page sends bytes or asks main to
+  // show an Open dialog; it never names a path. The file stays in memory.
+  let askOpen = false
   ipcMain.on(IPC.setInteractive, (event, interactive: unknown) => {
-    if (overlay && fromOverlay(event.sender) && typeof interactive === 'boolean') {
+    // While the file panel is open the window keeps taking clicks.
+    if (overlay && fromOverlay(event.sender) && typeof interactive === 'boolean' && !askOpen) {
       setOverlayInteractive(overlay, interactive)
     }
+  })
+  const fileChat = createFileChat({
+    router,
+    route: () => settings.ai.routes.fileQa,
+    emit: (event) => {
+      if (overlay && !overlay.isDestroyed()) overlay.webContents.send(IPC.askEvent, event)
+    },
+    log
+  })
+  ipcMain.on(IPC.setAskOpen, (event, open: unknown) => {
+    if (!overlay || !fromOverlay(event.sender) || typeof open !== 'boolean') return
+    askOpen = open
+    setOverlayAsking(overlay, open)
+    if (!open) fileChat.close()
+  })
+  ipcMain.handle(IPC.loadFile, (event, name: unknown, bytes: unknown): Promise<LoadResult> => {
+    const parsedName = fileNameSchema.safeParse(name)
+    const parsedBytes = fileBytesSchema.safeParse(bytes)
+    if (!fromOverlay(event.sender) || !askOpen) {
+      return Promise.resolve({ ok: false, message: 'Open the file panel first.' })
+    }
+    if (!parsedName.success || !parsedBytes.success) {
+      const issue = parsedBytes.success ? undefined : parsedBytes.error.issues[0]?.message
+      return Promise.resolve({ ok: false, message: issue ?? "That file can't be read." })
+    }
+    return fileChat.load(parsedName.data, parsedBytes.data)
+  })
+  ipcMain.handle(IPC.chooseFile, async (event): Promise<LoadResult> => {
+    if (!overlay || !fromOverlay(event.sender) || !askOpen) {
+      return { ok: false, message: 'Not allowed.' }
+    }
+    // Owned by the island, so it opens above it: the island stays on top of
+    // every other window, and both sit near the top of the screen.
+    const chosen = await dialog.showOpenDialog(overlay, {
+      title: 'Ask Suri about a file',
+      properties: ['openFile'],
+      filters: [
+        { name: 'PDF, text and code', extensions: ['pdf', ...TEXT_EXTENSIONS] },
+        { name: 'All files', extensions: ['*'] }
+      ]
+    })
+    const path = chosen.filePaths[0]
+    if (chosen.canceled || !path) return { ok: false, message: '' }
+    try {
+      const size = (await stat(path)).size
+      if (size > MAX_FILE_BYTES) {
+        return { ok: false, message: 'Suri reads files up to 20 MB.' }
+      }
+      return fileChat.load(basename(path), new Uint8Array(await readFile(path)))
+    } catch (err) {
+      return { ok: false, message: err instanceof Error ? err.message : String(err) }
+    }
+  })
+  ipcMain.handle(IPC.ask, (event, question: unknown): AskStart => {
+    const parsed = questionSchema.safeParse(question)
+    if (!fromOverlay(event.sender) || !askOpen) return { ok: false, message: 'Not allowed.' }
+    if (!parsed.success) return { ok: false, message: 'Ask a question of up to 2,000 characters.' }
+    return fileChat.ask(parsed.data)
+  })
+  ipcMain.on(IPC.cancelAsk, (event, id: unknown) => {
+    const parsed = askIdSchema.safeParse(id)
+    if (fromOverlay(event.sender) && parsed.success) fileChat.cancel(parsed.data)
+  })
+  // The island can't use the page's clipboard: it isn't focused most of the time.
+  ipcMain.handle(IPC.copyText, (event, text: unknown): boolean => {
+    const parsed = copyTextSchema.safeParse(text)
+    if (!fromOverlay(event.sender) || !parsed.success) return false
+    clipboard.writeText(parsed.data)
+    return true
   })
   // The renderer names a session; main looks up its folder. A path from the
   // renderer is never trusted.
@@ -377,9 +497,31 @@ async function start(): Promise<void> {
     },
     updateAi: async (patch) => {
       change({ ai: applyAiPatch(settings.ai, patch) })
-      // Cached answers came from the old model.
+      // Cached answers came from the old model, and the model to keep warm may differ.
       riskExplainer.clear()
+      warmer.reset()
       return { ok: true }
+    },
+    deleteHistory: async () => {
+      if (!history) return { ok: false, message: historyProblem ?? 'History is off.' }
+      try {
+        const turns = history.clear()
+        log(`history deleted (${turns} turns)`)
+        return { ok: true }
+      } catch (err) {
+        return { ok: false, message: err instanceof Error ? err.message : String(err) }
+      }
+    },
+    startOllama: async () => {
+      const started = await startOllama()
+      if (started.state === 'running' || started.state === 'started') return { ok: true }
+      return {
+        ok: false,
+        message:
+          started.state === 'not-installed'
+            ? "Ollama isn't installed. Get it from ollama.com."
+            : started.message
+      }
     },
     testAi: (provider) => providers[provider].test(),
     saveGeminiKey: async (key) => {
@@ -522,6 +664,12 @@ async function start(): Promise<void> {
     }
   })
 
+  // `suri --ask` at launch comes before the island's page is ready: it waits.
+  const openAsk = (): void => {
+    if (!islandReady) askWaiting = true
+    else if (overlay && !overlay.isDestroyed()) overlay.webContents.send(IPC.openAsk)
+  }
+
   tray = createTray(
     () => ({
       sessions: sessions.list().length,
@@ -533,6 +681,7 @@ async function start(): Promise<void> {
     }),
     {
       open: openIsland,
+      openAsk,
       openDigest,
       openHistory: () => openHistoryWindow(),
       openSettings,
@@ -547,11 +696,14 @@ async function start(): Promise<void> {
     }
   )
 
-  // `suri --settings` opens Settings and `suri --history` History, also when
-  // Suri is already running (a shortcut can use them).
+  // `suri --settings` opens Settings, `suri --history` History, `suri --digest`
+  // today's standup notes and `suri --ask` the file panel, also when Suri is
+  // already running (a shortcut or a hotkey can use them).
   const openFromArgs = (argv: readonly string[]): boolean => {
     if (argv.includes('--settings')) openSettings()
     else if (argv.includes('--history')) openHistoryWindow()
+    else if (argv.includes('--digest')) openDigest()
+    else if (argv.includes('--ask')) openAsk()
     else return false
     return true
   }
@@ -570,6 +722,14 @@ async function start(): Promise<void> {
   const status = await server.start()
   if (status.state === 'error') log(`hook server: ${status.message}`)
   setInterval(() => sessions.prune(), 60_000).unref()
+  // Paul's choice (ADR-024): a closed Ollama is started with Suri, so the
+  // first risk check doesn't fail. It only starts the app; models load later.
+  if (settings.ai.startOllama) {
+    void startOllama().then((started) => {
+      if (started.state === 'started') log('started Ollama')
+      if (started.state === 'failed') log(started.message)
+    })
+  }
   if (history) {
     history.prune()
     setInterval(() => history.prune(), 6 * 60 * 60_000).unref()

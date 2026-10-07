@@ -164,12 +164,15 @@ export function GeneralPane({ general, server, hooks, onShowHooks }: Props): Rea
             History shows it.
           </p>
           {general.history.ok ? (
-            <div className="mt-3 flex flex-wrap items-center gap-3">
-              <Path>{general.history.file}</Path>
-              <Button onClick={() => void window.suriSettings.reveal('history-file')}>
-                Show in Explorer
-              </Button>
-            </div>
+            <>
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                <Path>{general.history.file}</Path>
+                <Button onClick={() => void window.suriSettings.reveal('history-file')}>
+                  Show in Explorer
+                </Button>
+              </div>
+              <DeleteHistory />
+            </>
           ) : (
             <div className="mt-3">
               <Notice tone="error">
@@ -179,6 +182,53 @@ export function GeneralPane({ general, server, hooks, onShowHooks }: Props): Rea
           )}
         </Card>
       </Section>
+    </div>
+  )
+}
+
+/** Two clicks: one to ask, one to confirm. It can't be undone. */
+function DeleteHistory(): React.JSX.Element {
+  const [step, setStep] = useState<'idle' | 'confirm' | 'deleting'>('idle')
+  const [result, setResult] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null)
+
+  const remove = async (): Promise<void> => {
+    setStep('deleting')
+    const done = await window.suriSettings.deleteHistory()
+    setStep('idle')
+    setResult(
+      done.ok ? { tone: 'ok', text: 'History deleted.' } : { tone: 'error', text: done.message }
+    )
+  }
+
+  return (
+    <div className="mt-4 border-t border-white/[0.06] pt-4">
+      {step === 'idle' ? (
+        <Button
+          onClick={() => {
+            setResult(null)
+            setStep('confirm')
+          }}
+        >
+          Delete history…
+        </Button>
+      ) : (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[12.5px] text-zinc-300">
+            Delete every request, recap, approval and digest Suri saved? This can&apos;t be undone.
+          </span>
+          <Button tone="danger" disabled={step === 'deleting'} onClick={() => void remove()}>
+            {step === 'deleting' ? 'Deleting…' : 'Delete everything'}
+          </Button>
+          <Button disabled={step === 'deleting'} onClick={() => setStep('idle')}>
+            Cancel
+          </Button>
+        </div>
+      )}
+      {result && (
+        <div className="mt-3">
+          <Notice tone={result.tone}>{result.text}</Notice>
+        </div>
+      )}
     </div>
   )
 }

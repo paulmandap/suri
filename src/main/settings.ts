@@ -31,7 +31,9 @@ const aiSchema = z.object({
       digest: routeSchema.optional().catch(undefined)
     })
     .optional()
-    .catch(undefined)
+    .catch(undefined),
+  startOllama: z.boolean().optional().catch(undefined),
+  keepWarm: z.boolean().optional().catch(undefined)
 })
 
 // Each field falls back on its own, so one bad value never resets the token
@@ -65,7 +67,9 @@ function aiFrom(stored: Stored['ai']): AiSettings {
       recap: routes?.recap ?? DEFAULT_AI.routes.recap,
       fileQa: routes?.fileQa ?? DEFAULT_AI.routes.fileQa,
       digest: routes?.digest ?? DEFAULT_AI.routes.digest
-    }
+    },
+    startOllama: stored?.startOllama ?? DEFAULT_AI.startOllama,
+    keepWarm: stored?.keepWarm ?? DEFAULT_AI.keepWarm
   }
 }
 

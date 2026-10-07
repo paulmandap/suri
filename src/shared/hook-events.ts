@@ -130,6 +130,14 @@ export const SUBSCRIBED_EVENTS: readonly HookEventName[] = [
   'SessionEnd'
 ]
 
+/**
+ * `npm run replay` marks its payloads (unless `--record`), so demos stay out
+ * of History: no turns, steps or approvals saved (ADR-020).
+ */
+export function isReplay(event: HookEvent): boolean {
+  return (event as { suri_replay?: unknown }).suri_replay === true
+}
+
 export type ParseResult =
   | { ok: true; event: HookEvent }
   | { ok: false; reason: 'unknown-event'; eventName: string }

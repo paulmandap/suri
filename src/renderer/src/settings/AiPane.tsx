@@ -11,7 +11,7 @@ import {
   type Route
 } from '@shared/ai-config'
 import type { AiView } from '@shared/settings-ipc'
-import { Button, Card, Notice, Section } from './ui'
+import { Button, Card, Notice, Section, ToggleRow } from './ui'
 
 const PROVIDER_LABEL: Record<ProviderId, string> = { ollama: 'Ollama', gemini: 'Gemini' }
 
@@ -117,6 +117,9 @@ function OllamaSection({
           </p>
         )}
         <TestLine test={test} testing={testing} />
+        {test && !test.ok && test.kind === 'offline' && (
+          <StartOllama installed={ai.ollamaApp} onStarted={onTest} />
+        )}
         {installed && installed.length > 0 && (
           <div className="mt-3 flex flex-wrap gap-1.5">
             {installed.map((model) => (
@@ -146,8 +149,58 @@ function OllamaSection({
             />
           </div>
         </div>
+
+        <div className="mt-5 divide-y divide-white/[0.06] border-t border-white/[0.06] pt-4">
+          <ToggleRow
+            label="Start Ollama with Suri"
+            hint="If Ollama isn't running when Suri starts, Suri starts Ollama's app (which may install a waiting Ollama update)."
+            checked={ai.settings.startOllama}
+            onChange={(startOllama) => void window.suriSettings.updateAi({ startOllama })}
+          />
+          <ToggleRow
+            label="Keep the model ready while Claude Code works"
+            hint="Loads the local model as soon as Claude Code starts working and keeps it in the graphics card until 15 minutes after it goes quiet, so risk checks and recaps don't wait for it to load."
+            checked={ai.settings.keepWarm}
+            onChange={(keepWarm) => void window.suriSettings.updateAi({ keepWarm })}
+          />
+        </div>
       </Card>
     </Section>
+  )
+}
+
+/** Shown when Ollama doesn't answer: start its app, then test again. */
+function StartOllama({
+  installed,
+  onStarted
+}: {
+  installed: boolean
+  onStarted: () => void
+}): React.JSX.Element {
+  const [starting, setStarting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  if (!installed) {
+    return (
+      <p className="mt-2 text-[12px] text-zinc-400">
+        Ollama doesn&apos;t seem to be installed. Get it from ollama.com.
+      </p>
+    )
+  }
+  const start = async (): Promise<void> => {
+    setStarting(true)
+    setError(null)
+    const result = await window.suriSettings.startOllama()
+    setStarting(false)
+    if (result.ok) onStarted()
+    else setError(result.message)
+  }
+  return (
+    <div className="mt-3">
+      <Button tone="primary" disabled={starting} onClick={() => void start()}>
+        {starting ? 'Starting Ollama…' : 'Start Ollama'}
+      </Button>
+      {error && <p className="mt-2 text-[12px] text-red-300">{error}</p>}
+    </div>
   )
 }
 

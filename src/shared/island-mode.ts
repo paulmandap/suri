@@ -1,6 +1,6 @@
 import type { IslandSnapshot, PendingApproval, RiskLevel, Session, SessionStatus } from './types'
 
-export type IslandMode = 'hidden' | 'peek' | 'compact' | 'expanded' | 'card'
+export type IslandMode = 'hidden' | 'peek' | 'compact' | 'expanded' | 'card' | 'ask'
 export type SessionCardKind = 'waiting' | 'error' | 'finished'
 
 /** The short "Allowed / Denied" moment after Paul clicks, before the island folds. */
@@ -26,6 +26,8 @@ export interface IslandUiState {
   feedback?: DecisionFeedback
   /** Kept by pickFocus, so the compact bar doesn't flip between busy sessions. */
   focus?: Focus
+  /** The file panel is open (ADR-027): it stays until Paul closes it. */
+  askOpen?: boolean
 }
 
 /** How long the compact bar stays on one session before another busy one may take over. */
@@ -114,6 +116,10 @@ export function deriveIslandView(
   now: number
 ): IslandView {
   if (!snapshot) return { mode: 'hidden' }
+  // A request waiting for Allow or Deny beats the file panel; it comes back after.
+  if (ui.askOpen && !ui.feedback && snapshot.approvals.length === 0) {
+    return { mode: 'ask', focus: snapshot.sessions.find((s) => s.id === ui.focus?.id) }
+  }
   if (snapshot.paused) return { mode: ui.hovering || ui.pinnedOpen ? 'peek' : 'hidden' }
 
   const sessions = snapshot.sessions

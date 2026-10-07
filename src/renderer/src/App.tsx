@@ -8,6 +8,8 @@ import { useIsland } from './store'
 function App(): React.JSX.Element {
   const setSnapshot = useIsland((s) => s.setSnapshot)
   const setPinnedOpen = useIsland((s) => s.setPinnedOpen)
+  const openAsk = useIsland((s) => s.openAsk)
+  const applyAskEvent = useIsland((s) => s.applyAskEvent)
 
   useEffect(() => {
     let last: IslandSnapshot | null = null
@@ -18,12 +20,22 @@ function App(): React.JSX.Element {
       if (cue) playCue(cue)
     })
     const offOpen = window.suri.onOpenIsland(() => setPinnedOpen(true))
+    const offAsk = window.suri.onOpenAsk(openAsk)
+    const offAnswer = window.suri.onAskEvent(applyAskEvent)
+    // A file dropped anywhere but the drop zone must not open in the window.
+    const noDrop = (event: DragEvent): void => event.preventDefault()
+    window.addEventListener('dragover', noDrop)
+    window.addEventListener('drop', noDrop)
     window.suri.rendererReady()
     return () => {
       offSnapshot()
       offOpen()
+      offAsk()
+      offAnswer()
+      window.removeEventListener('dragover', noDrop)
+      window.removeEventListener('drop', noDrop)
     }
-  }, [setSnapshot, setPinnedOpen])
+  }, [setSnapshot, setPinnedOpen, openAsk, applyAskEvent])
 
   return <Island />
 }

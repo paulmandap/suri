@@ -28,7 +28,11 @@ export const SETTINGS_IPC = {
   /** renderer → main (invoke): save the Gemini key, encrypted. It never comes back. */
   saveGeminiKey: 'suri:settings-save-gemini-key',
   /** renderer → main (invoke): delete the saved Gemini key. */
-  removeGeminiKey: 'suri:settings-remove-gemini-key'
+  removeGeminiKey: 'suri:settings-remove-gemini-key',
+  /** renderer → main (invoke): start Ollama's app if it isn't running. */
+  startOllama: 'suri:settings-start-ollama',
+  /** renderer → main (invoke): delete everything in the history. Only a click can send it. */
+  deleteHistory: 'suri:settings-delete-history'
 } as const
 
 export interface GeneralView {
@@ -62,6 +66,8 @@ export interface AiView {
   geminiKey: 'saved' | 'missing'
   /** Windows can encrypt secrets (DPAPI); without it Suri won't save a key. */
   secureStorage: boolean
+  /** Ollama's app is installed, so "Start Ollama" can work. */
+  ollamaApp: boolean
 }
 
 export interface SettingsView {
@@ -115,4 +121,7 @@ export interface SuriSettingsApi {
   testAi(provider: ProviderId): Promise<ConnectionTest>
   saveGeminiKey(key: string): Promise<UpdateResult>
   removeGeminiKey(): Promise<UpdateResult>
+  startOllama(): Promise<UpdateResult>
+  /** Deletes every turn, recap, approval and digest. Refused unless a click started it. */
+  deleteHistory(): Promise<UpdateResult>
 }

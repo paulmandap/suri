@@ -76,6 +76,22 @@ describe('reduceSessions with the real Phase 0 run', () => {
     const { state } = replay([...steps, 'SessionEnd'])
     expect(state.sessions).toEqual({})
   })
+
+  it("counts each turn on its own, so the finished card shows that turn's work", () => {
+    const { state } = replay([
+      ...steps,
+      'UserPromptSubmit',
+      'PreToolUse.Bash',
+      'PostToolUse.Bash',
+      'Stop'
+    ])
+    expect(state.sessions['session-1']!.stats).toEqual({
+      tools: 1,
+      edits: 0,
+      linesAdded: 0,
+      linesRemoved: 0
+    })
+  })
 })
 
 describe('permissions', () => {

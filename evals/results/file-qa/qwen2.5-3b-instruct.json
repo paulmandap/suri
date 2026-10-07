@@ -1,0 +1,70 @@
+{
+  "model": "qwen2.5:3b-instruct",
+  "provider": "ollama",
+  "date": "2026-10-07",
+  "casesHash": "b75fc864",
+  "promptHash": "17016871",
+  "coldMs": 3562,
+  "results": [
+    {
+      "id": "port",
+      "ms": 969,
+      "answer": "The default port for Suri's hook server is 47821."
+    },
+    {
+      "id": "why-node-sqlite",
+      "ms": 1820,
+      "answer": "Suri used `node:sqlite` instead of `better-sqlite3` because `node:sqlite` works in both Electron 44 (with SQLite 3.53) and Node 22 (with SQLite 3.51). `better-sqlite3` could only be compiled for one of these environments, causing build issues."
+    },
+    {
+      "id": "approval-wait",
+      "ms": 1028,
+      "answer": "Suri holds a permission request for 110 seconds before letting Claude Code ask."
+    },
+    {
+      "id": "gemini-key",
+      "ms": 1349,
+      "answer": "The Gemini API key is stored in `%APPDATA%\\Suri\\secrets.json`, encrypted with Windows DPAPI and base64 encoded. It is kept secret and not saved at all without encryption."
+    },
+    {
+      "id": "cloud-secrets",
+      "ms": 1709,
+      "answer": "Secrets are redacted before any cloud call. Specifically, the router removes Suri's hook token and the Gemini key by exact value, plus pattern-matched secrets such as private keys, passwords in URLs, the whole credential after `Authorization:` (any scheme, any case), well-known token shapes (including Google's newer `AQ.` keys), and secret-named values in JSON (strings and numbers), .env and YAML."
+    },
+    {
+      "id": "risk-model",
+      "ms": 1840,
+      "answer": "The risk check now uses `qwen3.5:9b`.\n\nSuri switched to `qwen3.5:9b` because it took 12.7 seconds to load, dropping from 45 seconds to under 13 seconds after the Ollama update to version 0.40 on 2026-10-07."
+    },
+    {
+      "id": "safety-net",
+      "ms": 1125,
+      "answer": "The safety net answers PreToolUse with `\"ask\"` for high-risk commands (e.g., `rm -rf`, force push, `curl | sh ...`) and shows a reason. Everything else gets no decision."
+    },
+    {
+      "id": "price",
+      "ms": 739,
+      "answer": "It doesn't say."
+    },
+    {
+      "id": "linux-installer",
+      "ms": 812,
+      "answer": "It doesn't specify the package format for the Linux installer."
+    },
+    {
+      "id": "readme-what",
+      "ms": 347,
+      "answer": "Suri lives in a small Dynamic Island–style bar at the top of your screen."
+    },
+    {
+      "id": "readme-node",
+      "ms": 152,
+      "answer": "Node 22.13+"
+    },
+    {
+      "id": "readme-users",
+      "ms": 104,
+      "answer": "It doesn't say."
+    }
+  ]
+}

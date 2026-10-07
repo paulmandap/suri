@@ -1,0 +1,70 @@
+{
+  "model": "qwen3.5:9b",
+  "provider": "ollama",
+  "date": "2026-10-07",
+  "casesHash": "b75fc864",
+  "promptHash": "17016871",
+  "coldMs": 16439,
+  "results": [
+    {
+      "id": "port",
+      "ms": 4565,
+      "answer": "Suri's hook server uses **port 47821** by default.\n\n*   **ADR-002** specifies that Claude Code POSTs hooks to `http://127.0.0.1:<port>/hooks`, explicitly stating \"(default port 47821)\" (page 1)."
+    },
+    {
+      "id": "why-node-sqlite",
+      "ms": 7874,
+      "answer": "Suri used `node:sqlite` because it is a built-in Node module that avoids the need for compilation, native dependencies, or separate build steps required by `better-sqlite3`.\n\n**Details:**\n*   **Compilation Issues:** `better-sqlite3` is a native module requiring compilation for specific Electron and Node versions (`electron-builder install-app-deps`). This process built it correctly for one environment but broke the other.\n*   **Unified Support:** `node:sqlite` works natively in both Electron 44 (used by the app) and Node 22+ (used by unit tests like Vitest) without requiring different builds.\n*   **Simplicity:** Using `node:sqlite` means no new dependencies are added, keeping the build and tests simple with nothing to compile.\n\n*(Context from ADR-020)*"
+    },
+    {
+      "id": "approval-wait",
+      "ms": 4660,
+      "answer": "Suri holds the HTTP request open indefinitely until the user clicks **Allow** or **Deny**. It only steps aside and lets Claude Code's own prompt appear after the user answers via click. If no answer occurs, an 110-second timeout triggers (shorter than Claude Code's 120s hook limit), causing Suri to drop the request so Claude Code can ask itself."
+    },
+    {
+      "id": "gemini-key",
+      "ms": 6568,
+      "answer": "The Gemini API key is stored in `%APPDATA%\\Suri\\secrets.json` using Electron `safeStorage` (Windows DPAPI) for encryption.\n\n*   **Storage Location:** It is saved as a base64-encoded string of the encrypted bytes in the JSON file at the path specified above.\n*   **Protection:** It is never saved without encryption; if encryption fails, it isn't saved at all. The key is kept on the host machine and never sent back to `main`.\n*   **Redaction:** Before any cloud call, a router redacts the exact key value along with other secrets (like credentials after `Authorization:`) from prompts and data being stored or sent."
+    },
+    {
+      "id": "cloud-secrets",
+      "ms": 4685,
+      "answer": "Secrets are redacted in the router immediately before any cloud call. The process removes specific values by exact match and pattern matching, including Suri's hook token, API keys, private keys, passwords in URLs, credentials following an `Authorization` header, known token shapes, and secret-named values in JSON or configuration files. The system errs on the side of removing too much, performing a second pass if needed to find nothing new [source text]."
+    },
+    {
+      "id": "risk-model",
+      "ms": 10867,
+      "answer": "The risk check currently uses `qwen3.5:9b`. Suri switched from `qwen2.5:7b-instruct` because the 9b model is significantly more accurate on evaluations and avoided being \"talked down\" by prompts to rate safe requests as low, which causes errors.\n\nAdditionally, since Paul updated Ollama to version 0.40, the initial load time for the 9b model dropped from about 50 seconds to roughly 8 seconds when unloaded and loaded again, fitting within the 45-second risk check limit. This makes it viable even as a cold start while providing superior accuracy.\n\n**Details:**\n*   **Accuracy:** `qwen3.5:9b` achieved 96% outcome accuracy and caught all high-risk cases without false lows, whereas `qwen2.5:7b-instruct` achieved 92% accuracy and had some cases rated too low.\n*   **Safety:** The 9b model did not lower its rating for \"this is safe\" prompts, unlike the previous default.\n*   **Performance:** While `qwen2.5:7b-instruct` loads faster cold (6s vs ~8s), the update to Ollama 0.40 reduced the 9b's first load enough to make the swap worthwhile for its higher intelligence."
+    },
+    {
+      "id": "safety-net",
+      "ms": 9229,
+      "answer": "For high-risk commands, Suri's safety net answers `PreToolUse` with \"ask\" and displays an explanation card allowing the user to Allow or Deny the action.\n\n**Details:**\n*   **Trigger Mechanism:** An instant rules engine (defined in `src/shared/risk-rules.ts`) identifies specific high-risk commands like `rm -rf`, `force push`, or `curl | sh`. When triggered, it forces the system to pause and ask for permission rather than executing automatically.\n*   **User Interface:** The approval presents a card featuring the island animating open with an amber glow and a meerkat in an alert pose. The command text appears on the card with \"Allow\" / \"Deny\" options.\n*   **Safety Logic:** The AI layer can raise warnings or add reasons but cannot lower a risk level if the rules have already flagged it high. Voice approvals are not used for these commands to prevent misheard words from executing dangerous actions.\n*   **Timeout:** If no answer is received in 110 seconds within VS Code, the request closes, and Claude Code may ask for permission itself or halt."
+    },
+    {
+      "id": "price",
+      "ms": 3350,
+      "answer": "The document does not state that a Suri license costs anything per month. The text describes the software as running locally on Ollama for free and using the Gemini free tier for cloud features, implying no subscription fee is charged by the application itself."
+    },
+    {
+      "id": "linux-installer",
+      "ms": 3417,
+      "answer": "The document does not mention a Linux installer or whether it uses `deb` or `rpm` packages. It only describes an installer for Windows (creating an `.exe`) and references a \"Phase 4 eval\" that sets final defaults, but no Linux-specific build details are provided."
+    },
+    {
+      "id": "readme-what",
+      "ms": 1233,
+      "answer": "Suri lives in a small Dynamic Island–style bar at the top of your screen."
+    },
+    {
+      "id": "readme-node",
+      "ms": 2330,
+      "answer": "You need **Node 22.13 or higher**.\n\n**Details:**\nThe document lists this requirement under the \"Development\" section in `suri-readme.md`. It notes that the tests use SQLite, which is built into Node.js versions starting from that threshold."
+    },
+    {
+      "id": "readme-users",
+      "ms": 1623,
+      "answer": "The document does not state how many people use Suri today. It only mentions that the project is in \"early development (Phase 6 of 8).\""
+    }
+  ]
+}

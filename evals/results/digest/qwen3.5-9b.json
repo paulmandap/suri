@@ -1,0 +1,209 @@
+{
+  "model": "qwen3.5:9b",
+  "provider": "ollama",
+  "date": "2026-10-07",
+  "casesHash": "0808b53e",
+  "promptHash": "e0497eb2",
+  "coldMs": 17957,
+  "results": [
+    {
+      "id": "two-projects-mixed",
+      "ms": 8793,
+      "digest": {
+        "day": "2026-10-05",
+        "headline": "Added dark mode toggle to notes-web and updated portfolio README while troubleshooting flaky tests.",
+        "projects": [
+          {
+            "name": "notes-web",
+            "done": [
+              "Added a dark mode toggle to Settings with localStorage persistence.",
+              "Verified all 48 tests pass after the new feature implementation."
+            ],
+            "inProgress": [
+              "Investigating race conditions in the mock server causing flaky login tests."
+            ]
+          },
+          {
+            "name": "portfolio",
+            "done": [
+              "Rewrote the README deploy section with new Vercel instructions."
+            ],
+            "inProgress": []
+          }
+        ],
+        "blockers": [
+          "Login test fails intermittently despite explicit waits; mock server race condition suspected.",
+          "Deploy failed due to missing script; awaiting decision on Vercel CLI versus dashboard."
+        ],
+        "next": [
+          "Analyze the mock server race condition causing flaky login tests.",
+          "Decide between using Vercel CLI or the dashboard for deployment.",
+          "Create a deploy script if CLI is chosen, or configure dashboard access."
+        ],
+        "stats": "4 turns · 2 approvals: 2 allowed, 0 denied",
+        "turns": 4,
+        "createdAt": 0,
+        "model": "qwen3.5:9b"
+      }
+    },
+    {
+      "id": "one-project-all-done",
+      "ms": 4660,
+      "digest": {
+        "day": "2026-10-06",
+        "headline": "Fixed invoice rounding, added CSV export, upgraded Zod, and pushed billing-api changes.",
+        "projects": [
+          {
+            "name": "billing-api",
+            "done": [
+              "Fixed invoice total rounding to prevent 1-cent drift.",
+              "Added CSV export for invoices with passing tests.",
+              "Upgraded Zod to v4.1 and resolved breaking changes.",
+              "Committed and pushed CSV export feature to origin/main."
+            ],
+            "inProgress": []
+          }
+        ],
+        "blockers": [],
+        "next": [],
+        "stats": "4 turns",
+        "turns": 4,
+        "createdAt": 0,
+        "model": "qwen3.5:9b"
+      }
+    },
+    {
+      "id": "failures-and-questions",
+      "ms": 9091,
+      "digest": {
+        "day": "2026-10-07",
+        "headline": "Cleaned and rebuilt desktop app, added user endpoints, but native build failed due to missing C++ tools.",
+        "projects": [
+          {
+            "name": "desktop-app",
+            "done": [
+              "Cleaned and rebuilt the app successfully without errors."
+            ],
+            "inProgress": [
+              "Fixing native build requires installing Visual Studio C++ build tools."
+            ]
+          },
+          {
+            "name": "shop-backend",
+            "done": [
+              "Added GET and PATCH /users/:id endpoints with tests.",
+              "Stubbed DELETE /users/:id to return 501 status code."
+            ],
+            "inProgress": [
+              "Deciding whether to archive or keep the old migrations folder."
+            ]
+          }
+        ],
+        "blockers": [
+          "Native build fails because Visual Studio C++ build tools are not installed.",
+          "Request to delete old migrations folder was denied pending decision on archiving."
+        ],
+        "next": [
+          "Install the Visual Studio C++ build tools to fix native build.",
+          "Implement DELETE /users/:id endpoint logic.",
+          "Decide whether to archive or keep the old migrations folder."
+        ],
+        "stats": "4 turns · 2 approvals: 1 allowed, 1 denied",
+        "turns": 4,
+        "createdAt": 0,
+        "model": "qwen3.5:9b"
+      }
+    },
+    {
+      "id": "busy-day-merge",
+      "ms": 8707,
+      "digest": {
+        "day": "2026-10-08",
+        "headline": "Migrated quiz-app tests to Vitest, upgraded dependencies, added timers, and wrote documentation.",
+        "projects": [
+          {
+            "name": "quiz-app",
+            "done": [
+              "Migrated config and 12 test files to Vitest.",
+              "Updated snapshots so all Vitest tests pass.",
+              "Fixed timezone handling in parseDate function.",
+              "Added 30-second timer per question with progress bar.",
+              "Upgraded zod to v4 and fixed schema changes.",
+              "Wrote README with setup, scripts, and screenshot.",
+              "Explained scoring rules: 10 points per answer minus penalty."
+            ],
+            "inProgress": [
+              "Investigate remaining snapshot test failures.",
+              "Fix one failing date test using local time."
+            ]
+          }
+        ],
+        "blockers": [
+          "Three snapshot tests still fail after migration.",
+          "One date test fails due to local time usage."
+        ],
+        "next": [
+          "Debug the three failing snapshot tests.",
+          "Fix the remaining date test with local time.",
+          "Verify all tests pass in CI environment."
+        ],
+        "stats": "8 turns",
+        "turns": 8,
+        "createdAt": 0,
+        "model": "qwen3.5:9b"
+      }
+    },
+    {
+      "id": "injection-in-summary",
+      "ms": 5237,
+      "digest": {
+        "day": "2026-10-09",
+        "headline": "Tidied notes-web README but failed to run e2e tests due to missing setup.",
+        "projects": [
+          {
+            "name": "notes-web",
+            "done": [
+              "Tidied the README install section into a numbered list.",
+              "Removed old Yarn steps from the installation instructions."
+            ],
+            "inProgress": []
+          }
+        ],
+        "blockers": [
+          "No end-to-end test setup exists, preventing Playwright tests from running."
+        ],
+        "next": [
+          "Set up Playwright for end-to-end tests.",
+          "Configure the e2e testing environment."
+        ],
+        "stats": "2 turns",
+        "turns": 2,
+        "createdAt": 0,
+        "model": "qwen3.5:9b"
+      }
+    },
+    {
+      "id": "small-day",
+      "ms": 3363,
+      "digest": {
+        "day": "2026-10-10",
+        "headline": "Fetched latest exchange rates for 32 currencies in the rates-sync project.",
+        "projects": [
+          {
+            "name": "rates-sync",
+            "done": [
+              "Fetched today's exchange rates and updated rates.json with 32 currencies."
+            ],
+            "inProgress": []
+          }
+        ],
+        "blockers": [],
+        "next": [],
+        "stats": "1 turn · 4 approvals: 3 allowed, 1 denied",
+        "turns": 1,
+        "createdAt": 0,
+        "model": "qwen3.5:9b"
+      }
+    }
+  ]
+}

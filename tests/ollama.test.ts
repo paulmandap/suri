@@ -225,4 +225,32 @@ describe('createOllamaProvider', () => {
     const offline = createOllamaProvider({ url: () => 'http://127.0.0.1:1' })
     expect(await offline.test()).toMatchObject({ ok: false, kind: 'offline' })
   })
+
+  it('asks Ollama to keep the model loaded, only while keep warm is on (ADR-024)', async () => {
+    const { url, seen } = await fakeOllama((call, res) => {
+      if (call.path === '/api/generate') send(res, 200, { done: true, done_reason: 'load' })
+      else send(res, 200, chat('{"level":"low","summary":"ok"}'))
+    })
+    let keep: string | undefined = '15m'
+    const ollama = createOllamaProvider({ url: () => url, keepAlive: () => keep })
+    await ollama.generateJSON({ model: 'm', prompt: 'x', schema: SCHEMA })
+    // An empty prompt only loads the model: Ollama's documented preload.
+    await ollama.warm('qwen3.5:9b')
+    keep = undefined
+    await ollama.generateJSON({ model: 'm', prompt: 'x', schema: SCHEMA })
+    expect(seen.map((call) => [call.path, call.body?.keep_alive])).toEqual([
+      ['/api/chat', '15m'],
+      ['/api/generate', '15m'],
+      ['/api/chat', undefined]
+    ])
+    expect(seen[1]?.body).toEqual({ model: 'qwen3.5:9b', keep_alive: '15m' })
+  })
+
+  it('says which model is missing when a warm-up finds none', async () => {
+    const { url } = await fakeOllama((_call, res) =>
+      send(res, 404, { error: 'model "nope" not found, try pulling it first' })
+    )
+    const ollama = createOllamaProvider({ url: () => url })
+    expect(await failure(ollama.warm('nope'))).toMatchObject({ kind: 'not-found' })
+  })
 })

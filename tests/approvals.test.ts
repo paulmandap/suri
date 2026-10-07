@@ -233,3 +233,15 @@ describe('answers', () => {
     )
   })
 })
+
+describe('replays', () => {
+  it('marks a request `npm run replay` sent, so its answer stays out of History', async () => {
+    const broker = createApprovalBroker()
+    void broker.request(
+      hookEvent('PermissionRequest.Bash', { suri_replay: true }) as PermissionRequest
+    )
+    void broker.request(hookEvent('PermissionRequest.Bash') as PermissionRequest)
+    expect(broker.list().map((a) => a.replayed)).toEqual([true, undefined])
+    broker.releaseAll()
+  })
+})

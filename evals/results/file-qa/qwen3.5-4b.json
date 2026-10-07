@@ -1,0 +1,70 @@
+{
+  "model": "qwen3.5:4b",
+  "provider": "ollama",
+  "date": "2026-10-07",
+  "casesHash": "b75fc864",
+  "promptHash": "17016871",
+  "coldMs": 10957,
+  "results": [
+    {
+      "id": "port",
+      "ms": 3964,
+      "answer": "Suri's hook server uses default port **47821**.\n\n**Details:**\n- In **ADR-002**, the decision specifies that Claude Code posts every hook event to `http://127.0.0.1:<port>/hooks` in Suri, with the text explicitly stating \"(default port 47821)\".\n- This applies when using the built-in HTTP hooks feature of Claude Code.\n- Port changes are handled dynamically: changing the port starts the new hook server before stopping the old one, ensuring a taken port never leaves Suri deaf (**ADR-003**)."
+    },
+    {
+      "id": "why-node-sqlite",
+      "ms": 5219,
+      "answer": "Suri chose `node:sqlite` over `better-sqlite3` because `node:sqlite` is a native Node.js module that requires no compilation for Electron or Node.js tests, whereas `better-sqlite3` does. This avoids the need to compile the module separately for different environments and simplifies the build process.\n\n*   **No native module compilation needed:** `better-sqlite3` is a native module that must be compiled for both Electron 44 (Node 24.21) and Node 22, requiring separate builds via `electron-builder install-app-deps`.\n*   **Simplified testing:** `node:sqlite` works in the app and Vitest without needing different versions or additional setup to hide warnings.\n*   **No dependency addition:** `node:sqlite` was already available, whereas `better-sqlite3` would have added a new external dependency."
+    },
+    {
+      "id": "approval-wait",
+      "ms": 4337,
+      "answer": "Suri holds the request for **110 seconds** before letting Claude Code ask.\n\nIf Suri does not receive an Allow or Deny answer within that time, the hook triggers a fallback where Claude Code prompts for itself.\n\n*   This timeout applies specifically to Suri's decision to \"Ask in Claude Code\".\n*   The overall PreToolUse hook allows 120 seconds, but Suri's intervention ensures it happens sooner by defaulting to Claude Code asking if Suri gives up after 110s.\n*   Once an answer (Allow or Deny) is received via a click, the session wait is cleared immediately."
+    },
+    {
+      "id": "gemini-key",
+      "ms": 6692,
+      "answer": "The Gemini API key is stored encrypted using Windows DPAPI (Data Protection Application Program Interface) via Electron's `safeStorage`. It is located at `%APPDATA%\\Suri\\secrets.json` as base64-encoded bytes.\n\n**Protection mechanisms:**\n- **Encryption**: The key is encrypted with the user's Windows login credentials, making it inaccessible to other users and unreadable without those credentials.\n- **No plaintext storage**: If encryption fails or the user logs out/in unexpectedly, the key isn't saved at all.\n- **Redaction before network/cloud calls**: Before any cloud API call, secrets are redacted from environment variables and prompts using patterns for private keys, passwords, `Authorization:` headers, and known token shapes (including Google's `AQ.` prefix).\n- **Environment isolation**: Code pins the Gemini host in source (`generativelanguage.googleapis.com`), preventing `GOOGLE_GEMINI_BASE_URL` or `GOOGLE_GENAI_USE_VERTEXAI` environment variables from redirecting the call to unintended Google services.\n\nSee ADR-004 (page 3–4) for storage details and redaction rules."
+    },
+    {
+      "id": "cloud-secrets",
+      "ms": 4539,
+      "answer": "Secrets are redacted in the router immediately before any call to a cloud model. The redaction process removes specific data points including:\n\n*   Suri's hook token and the Gemini API key (by exact value).\n*   Pattern-matched secrets like private keys, passwords in URLs, and credentials following `Authorization:` headers (regardless of scheme or case).\n*   Well-known token shapes, such as Google's newer `AQ.` keys.\n*   Secret-named values found in JSON strings, numbers, `.env` files, and YAML files.\n\nThis happens as part of a single router check that may include two passes to ensure no secrets remain, erring on the side of removing too much rather than too little."
+    },
+    {
+      "id": "risk-model",
+      "ms": 4911,
+      "answer": "The risk check now uses **`qwen3.5:9b`**.\n\nSuri switched from `qwen2.5:7b-instruct` (used in Phase 3) back to `qwen3.5:9b` because the earlier decision was based on a cold-start load time of ~50s, which exceeded the 45s limit. Paul updated Ollama on 2026-10-07, and subsequent evaluations showed that after an initial disk load, `qwen3.5:9b` loaded in **~8 seconds** (down from 50s), allowing it to fit within the time limit while offering the best accuracy (96% outcome correct) and avoiding the \"rate low\" bias seen in smaller models."
+    },
+    {
+      "id": "safety-net",
+      "ms": 6468,
+      "answer": "The safety net forces a prompt (sends `\"ask\"`) in **Phase 4** and earlier for high-risk shell and file commands, but it is not fully active yet.\n\n*   **Current Status:** Active only for specific rules (8 shell + 3 file rules + some medium ones) shown on Suri's approval card; can be switched off from the tray.\n*   **Scope:** It flags commands like `rm -rf`, force push, and `curl | sh`. It does not yet flag risks mentioned in Python/Node code or echo statements unless they appear verbatim.\n*   **Mechanism:** It answers the `PreToolUse` hook with `\"ask\"` immediately without using a model (until Phase 5).\n*   **Interaction:** If Suri holds a request, the user must click \"Allow\" or \"Deny\"; keyboard shortcuts or voice do not trigger approval for high-risk actions.\n*   **Override:** The AI model judge runs only *after* Suri's rule check if the user has already been prompted; the AI cannot lower a risk level set by Suri's rules (ADR-013)."
+    },
+    {
+      "id": "price",
+      "ms": 1776,
+      "answer": "The document does not say how much a Suri license costs per month."
+    },
+    {
+      "id": "linux-installer",
+      "ms": 2207,
+      "answer": "The document does not specify which package format (deb or rpm) the Linux installer uses. It only mentions an \"installer\" with a size of around 100 MB in the context of Windows (ADR-001)."
+    },
+    {
+      "id": "readme-what",
+      "ms": 974,
+      "answer": "Suri lives in a small Dynamic Island–style bar at the top of your screen."
+    },
+    {
+      "id": "readme-node",
+      "ms": 1742,
+      "answer": "You need **Node 22.13+** to run Suri and its tests.\n\nThe development section of the document states: \"Requirements: Windows 10/11 and Node 22.13+ (the tests use Node's built-in SQLite).\""
+    },
+    {
+      "id": "readme-users",
+      "ms": 1066,
+      "answer": "The document does not state how many people use Suri today. It only mentions that the project is in early development (Phase 6 of 8)."
+    }
+  ]
+}

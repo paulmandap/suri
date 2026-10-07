@@ -96,7 +96,9 @@ describe('AI settings', () => {
           routes: {
             risk: { provider: 'gemini', model: 'models/not:valid' },
             digest: { provider: 'ollama', model: 'llama3' }
-          }
+          },
+          startOllama: false,
+          keepWarm: 'always'
         }
       }),
       'utf8'
@@ -105,7 +107,9 @@ describe('AI settings', () => {
     expect(ai).toEqual({
       ollamaUrl: DEFAULT_AI.ollamaUrl,
       fallbackModel: 'llama3',
-      routes: { ...DEFAULT_AI.routes, digest: { provider: 'ollama', model: 'llama3' } }
+      routes: { ...DEFAULT_AI.routes, digest: { provider: 'ollama', model: 'llama3' } },
+      startOllama: false,
+      keepWarm: true
     })
     expect(onDisk()).toMatchObject({ token, ai })
   })

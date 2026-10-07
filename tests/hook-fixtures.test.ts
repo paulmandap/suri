@@ -3,9 +3,10 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 // Real payloads captured from Claude Code 2.1.284 in the Phase 0 spike
-// (docs/spike-hooks.md), with personal paths scrubbed. These tests pin the
-// fields Suri relies on, so a Claude Code update that changes them fails here
-// first. Several fields differ from what the docs summaries claimed.
+// (docs/spike-hooks.md), plus a subagent run captured on 2026-10-07, with
+// personal paths scrubbed. These tests pin the fields Suri relies on, so a
+// Claude Code update that changes them fails here first. Several fields
+// differ from what the docs summaries claimed.
 
 type Payload = Record<string, unknown>
 
@@ -26,8 +27,29 @@ describe('captured Claude Code hook payloads', () => {
       'PreToolUse',
       'SessionEnd',
       'Stop',
+      'SubagentStart',
+      'SubagentStop',
       'UserPromptSubmit'
     ])
+  })
+
+  it("a subagent's events carry its parent's session and prompt, plus its own agent id", () => {
+    const parent = load('PreToolUse.Agent.json')
+    for (const file of [
+      'SubagentStart.json',
+      'PreToolUse.Read.subagent.json',
+      'PostToolUse.Read.subagent.json',
+      'SubagentStop.json'
+    ]) {
+      const body = load(file)
+      expect(body.session_id).toBe(parent.session_id)
+      expect(body.prompt_id).toBe(parent.prompt_id)
+      expect(body.agent_id).toBe('ad4fcb91a57252fb5')
+      expect(body.agent_type).toBe('Explore')
+    }
+    // The parent's own Agent call has no agent id: that's how the two tell apart.
+    expect(parent).not.toHaveProperty('agent_id')
+    expect(load('SubagentStop.json').last_assistant_message).toBe('0.1.0')
   })
 
   it.each(all)('$file carries the common fields', ({ body }) => {

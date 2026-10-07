@@ -35,6 +35,9 @@ export default defineConfig({
     },
     plugins: [react(), tailwindcss()],
     build: {
+      // electron-vite leaves the renderer unminified, which made the windows'
+      // shared chunk 926 kB to read and parse on every open.
+      minify: 'esbuild',
       rollupOptions: {
         input: {
           index: resolve('src/renderer/index.html'),

@@ -1,5 +1,5 @@
 import { describeTool } from '@shared/activity'
-import type { HookEvent } from '@shared/hook-events'
+import { isReplay, type HookEvent } from '@shared/hook-events'
 import { assessRisk } from '@shared/risk-rules'
 import { projectName } from '@shared/sessions'
 import type { ApprovalDecision, PendingApproval, RiskFlag } from '@shared/types'
@@ -105,7 +105,8 @@ export function createApprovalBroker(
         ...(risk ? { risk } : {}),
         ...(opts.explain ? { checkingRisk: true } : {}),
         createdAt: now,
-        expiresAt: now + timeoutMs
+        expiresAt: now + timeoutMs,
+        ...(isReplay(event) ? { replayed: true as const } : {})
       }
       return new Promise<HookAnswer>((resolve) => {
         const timer = setTimeout(() => settle(id, null, 'timeout'), timeoutMs)

@@ -11,6 +11,9 @@ tests/fixtures/
 # Written by `npm run eval:risk`; formatting them would fight the next run.
 evals/results/
 
+# Frozen copies the file-question eval asks about; a change would change the test.
+evals/documents/
+
 # Written by scripts/mascot/build_mascot.py.
 assets/mascot/cutout/
 assets/mascot/sprites/

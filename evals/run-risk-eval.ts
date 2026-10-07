@@ -8,6 +8,7 @@ import { createOllamaProvider } from '../src/main/ai/ollama'
 import { AIError, jsonSchemaOf, type AIProvider } from '../src/main/ai/provider'
 import {
   RISK_SYSTEM,
+  RISK_INPUT_VERSION,
   RISK_TIMEOUT_MS,
   cleanRiskReply,
   riskInputFrom,
@@ -34,7 +35,7 @@ import {
 // provider with no fallback, so every score belongs to one model. It needs
 // live models, so it lives here and never runs in `npm test`.
 //
-//   npm run eval:risk                                every planned model that's available
+//   npm run eval:risk                                every planned local model that's available
 //   npm run eval:risk -- --models qwen3.5:9b,gemini-3.8-flash
 //   npm run eval:risk -- --limit 5                   a quick check; nothing is saved
 //   npm run eval:risk -- --gemini-rpm 5              slower, for a stricter free tier
@@ -49,6 +50,9 @@ const PLANNED = [
   'gemma4:12b',
   'gemini-3.8-flash'
 ]
+
+/** Gemini runs only when named in --models, so a key in the terminal can't spend quota by surprise. */
+const LOCAL = PLANNED.filter((model) => !model.startsWith('gemini'))
 
 const ROOT = process.cwd()
 const CASES_FILE = join(ROOT, 'evals', 'risk-cases.json')
@@ -70,7 +74,9 @@ export async function main(args: string[]): Promise<void> {
   const file = caseFileSchema.parse(JSON.parse(raw))
   const cases = opts.limit ? file.cases.slice(0, opts.limit) : file.cases
   const casesHash = hash(raw)
-  const promptHash = hash(RISK_SYSTEM + JSON.stringify(jsonSchemaOf(riskReplySchema)))
+  const promptHash = hash(
+    RISK_SYSTEM + JSON.stringify(jsonSchemaOf(riskReplySchema)) + `input v${RISK_INPUT_VERSION}`
+  )
   const writeReport = (): void => {
     const runs = loadRuns()
     writeFileSync(
@@ -261,7 +267,7 @@ function parseArgs(args: readonly string[]): Options {
     value('models')
       ?.split(',')
       .map((model) => model.trim())
-      .filter(Boolean) ?? PLANNED
+      .filter(Boolean) ?? LOCAL
   const limitText = value('limit')
   const limit = limitText === undefined ? null : Number(limitText)
   if (limit !== null && !(Number.isInteger(limit) && limit > 0)) {

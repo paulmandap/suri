@@ -126,6 +126,26 @@ describe('recording a turn', () => {
     expect(second).toMatchObject({ status: 'running', prompt: 'Something else' })
   })
 
+  it("puts a subagent's steps in its parent's turn (captured 2026-10-07)", () => {
+    const ids = play(
+      {
+        ...hookEvent('PreToolUse.Agent'),
+        hook_event_name: 'UserPromptSubmit',
+        prompt: 'Check the version'
+      },
+      'PreToolUse.Agent',
+      'SubagentStart',
+      'PreToolUse.Read.subagent',
+      'PostToolUse.Read.subagent',
+      'SubagentStop',
+      'PostToolUse.Agent',
+      { ...hookEvent('PreToolUse.Agent'), hook_event_name: 'Stop', last_assistant_message: '0.1.0' }
+    )
+    const turnIds = new Set(ids.filter((id) => id !== null))
+    expect(turnIds.size).toBe(1)
+    expect(onlyTurn().facts).toMatchObject({ steps: 2, agents: 1, reads: 1 })
+  })
+
   it('keeps one turn when Claude Code sends the same prompt twice', () => {
     play('UserPromptSubmit', 'UserPromptSubmit', 'Stop')
     expect(onlyTurn().status).toBe('done')
@@ -336,5 +356,33 @@ describe('prune', () => {
     now += 366 * DAY_MS
     history.prune()
     expect(history.days()).toEqual([])
+  })
+})
+
+describe('clear', () => {
+  it('deletes every turn, step, approval and digest, then keeps recording', () => {
+    play(...fullTurn)
+    history.recordDecision(approval('git push --force'), 'deny')
+    history.saveDigest({
+      day: DAY,
+      headline: 'x',
+      projects: [],
+      blockers: [],
+      next: [],
+      stats: '1 turn',
+      turns: 1,
+      createdAt: now
+    })
+    const before = changes
+    expect(history.clear()).toBe(1)
+    expect(changes).toBe(before + 1)
+    expect(history.days()).toEqual([])
+    expect(history.decisions(DAY)).toEqual([])
+    expect(history.digest(DAY)).toBeNull()
+    play(
+      { ...hookEvent('UserPromptSubmit'), prompt_id: 'after' },
+      { ...hookEvent('Stop'), prompt_id: 'after' }
+    )
+    expect(onlyTurn().status).toBe('done')
   })
 })

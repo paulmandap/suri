@@ -1,0 +1,27 @@
+# Suri
+
+**A meerkat lookout for your Claude Code sessions on Windows.**
+
+Suri lives in a small Dynamic Island–style bar at the top of your screen. It shows what Claude Code is doing, lets you allow or deny permission requests with one click, explains risky commands in plain English, and sums up each session, using local models (Ollama) or Gemini.
+
+> **Status:** early development (Phase 6 of 8). Live Claude Code activity, one-click approvals, a safety net for risky commands, and a Settings window that installs Suri's hooks into Claude Code with a diff preview and a backup. An AI risk explainer on every approval, a recap when Claude finishes, a local history of every request, and daily standup notes, using local models through Ollama or Gemini, with secrets removed before anything goes to the cloud. Each AI feature is measured with an eval (`evals/`).
+
+## Development
+
+Requirements: Windows 10/11 and Node 22.13+ (the tests use Node's built-in SQLite).
+
+```powershell
+npm install
+npm run dev     # start the app
+npm test        # unit tests
+```
+
+How Suri talks to Claude Code, and what was measured: [`docs/spike-hooks.md`](docs/spike-hooks.md). Design decisions: [`docs/decisions.md`](docs/decisions.md).
+
+## Credits
+
+Inspired by [Coucou](https://github.com/louis-cfm/coucou) (MIT) by Louis Raillé. Suri is an independent project with its own code, name and character.
+
+## License
+
+The code is [MIT](LICENSE). The Suri mascot and its art (`assets/mascot/`, the app and tray icons) are all rights reserved: see [`assets/mascot/LICENSE.md`](assets/mascot/LICENSE.md).

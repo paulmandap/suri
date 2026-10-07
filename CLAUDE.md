@@ -52,6 +52,7 @@ Then give copy-paste PowerShell blocks: `cd C:\paul\ai_tool_no-name-yet`, `git a
 - Never assert an eval score in a unit test.
 - Hook payload shapes come from real captured payloads (`tests/fixtures/hooks/`), not from docs summaries. The summaries were wrong twice in Phase 0 (`tool_response`, `reason`).
 - Don't claim something works unless it was run. If only part works, say which part.
+- Paul games on this PC. Before an on-screen test (the island pops up and the file panel takes focus) or a local-model eval (it loads the GPU), check which window is in front; if it's a game, wait or ask. On 2026-10-07 a test card caught a click meant for Dota 2 (ADR-028).
 
 ## Conventions
 
@@ -68,7 +69,7 @@ Then give copy-paste PowerShell blocks: `cd C:\paul\ai_tool_no-name-yet`, `git a
 - `SURI_DEVTOOLS=1` opens DevTools for the island in a separate window (the island itself can never take focus), and for Settings and History.
 - `CLAUDE_CONFIG_DIR=<folder>` makes the installer edit `<folder>/settings.json` instead of `~/.claude/settings.json` (Claude Code reads the same variable). Use a scratch folder for tests.
 - `SURI_DATA_DIR=<folder>` runs Suri with its own settings, secrets and history in `<folder>` (and its own single-instance lock) instead of `%APPDATA%\Suri`. Give its `settings.json` another port. End-to-end runs use it so Paul's history stays clean; `npm run replay` honours it too.
-- `--settings` opens the Settings window at launch, or in the running Suri on a second launch. `--history` does the same for History.
+- `--settings` opens the Settings window at launch, or in the running Suri on a second launch. `--history` does the same for History, `--digest` for today's standup notes, and `--ask` for the island's file panel.
 - Replays are marked and stay out of History; `npm run replay -- <scenario> --record` saves them and writes recaps.
 
 ## Documentation duties
@@ -94,7 +95,10 @@ npm run build:win      # Windows installer (NSIS, per-user)
 npm run sandbox:hooks  # point sandbox/ at the running Suri (reads %APPDATA%\Suri\settings.json)
 npm run replay -- session|permission|risky|explain|error|multi|workday|end [--hold ms] [--record]   # feed real captured payloads to Suri
 npm run eval:risk      # risk eval on live models (evals/README.md); never part of npm test
-npm run eval:recap     # recap eval on live models (evals/README.md); never part of npm test
+npm run eval:recap     # recap eval on live models
+npm run eval:digest    # digest eval on live models
+npm run eval:files     # file question eval on live models (prints the retrieval check first)
+#                        all four: local models by default; Gemini only with --models gemini-3.8-flash
 python scripts/mascot/build_mascot.py   # sprites and icons from assets/mascot/source (needs rembg; see its README)
 npm run spike:hooks -- --decision none|allow|deny|ask   # Phase 0 hook logger
 ```

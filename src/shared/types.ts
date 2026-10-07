@@ -65,6 +65,7 @@ export interface Session {
   running: Activity[]
   /** Finished activities, newest first, at most MAX_RECENT. */
   recent: Activity[]
+  /** The current turn's numbers; a new prompt starts them again. */
   stats: SessionStats
   pendingPermission?: PendingPermission
   /** Set on Stop; drives the "finished" card. */
@@ -152,6 +153,8 @@ export interface PendingApproval {
   createdAt: number
   /** When Suri gives up and lets Claude Code ask instead. */
   expiresAt: number
+  /** Sent by `npm run replay`: its answer stays out of History, like the rest of a replay. */
+  replayed?: true
 }
 
 /** Everything the island needs, pushed from main after every change. */

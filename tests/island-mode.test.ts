@@ -237,3 +237,34 @@ describe('pickFocus: the compact bar stays put between two busy sessions', () =>
     expect(ended.focus?.id).toBe('b')
   })
 })
+
+describe('the file panel (ADR-027)', () => {
+  const held: PendingApproval = {
+    id: 'a1',
+    sessionId: 's1',
+    project: 'demo',
+    tool: 'Bash',
+    verb: 'Running',
+    detail: 'npm publish',
+    createdAt: NOW - 1_000,
+    expiresAt: NOW + 100_000
+  }
+
+  it('stays open whatever the pointer does, even with no session or while paused', () => {
+    expect(deriveIslandView(snapshot([]), ui({ askOpen: true }), NOW).mode).toBe('ask')
+    expect(deriveIslandView(snapshot([session()]), ui({ askOpen: true }), NOW).mode).toBe('ask')
+    expect(deriveIslandView(snapshot([], { paused: true }), ui({ askOpen: true }), NOW).mode).toBe(
+      'ask'
+    )
+  })
+
+  it('makes way for a request waiting on Paul, and for the Allowed flash, then comes back', () => {
+    const open = ui({ askOpen: true })
+    expect(deriveIslandView(snapshot([session()], { approvals: [held] }), open, NOW).mode).toBe(
+      'card'
+    )
+    const flash = ui({ askOpen: true, feedback: { id: 'a1', decision: 'allow', project: 'demo' } })
+    expect(deriveIslandView(snapshot([session()]), flash, NOW).card?.kind).toBe('feedback')
+    expect(deriveIslandView(snapshot([session()]), open, NOW).mode).toBe('ask')
+  })
+})

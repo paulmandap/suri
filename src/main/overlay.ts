@@ -85,6 +85,28 @@ export function setOverlayInteractive(win: BrowserWindow, interactive: boolean):
 }
 
 /**
+ * The file panel (ADR-027). While it's open the window takes every click,
+ * because a file dragged from Explorer can't land on a click-through window
+ * (Coucou's Windows bug #126), and it may take focus so a question can be
+ * typed. The panel fills nearly the whole window, so little is blocked. When
+ * it closes, the island goes back to never taking focus.
+ */
+export function setOverlayAsking(win: BrowserWindow, asking: boolean): void {
+  if (asking) {
+    win.setFocusable(true)
+    setOverlayInteractive(win, true)
+    // `suri --ask` at launch can get here before the window has appeared.
+    if (win.isVisible()) win.focus()
+    else win.once('show', () => win.focus())
+    return
+  }
+  // Hand focus back first, while the window still owns it.
+  if (win.isFocused()) win.blur()
+  win.setFocusable(false)
+  setOverlayInteractive(win, false)
+}
+
+/**
  * Leaves the overlay out of screen capture and sharing (ADR-005).
  * SURI_ALLOW_CAPTURE=1 turns it off for screenshots and demo recordings.
  */

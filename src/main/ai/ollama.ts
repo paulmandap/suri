@@ -12,8 +12,9 @@ import {
   type TextRequest
 } from './provider'
 
-// Ollama's REST API, with the shapes Ollama 0.35.1 sent on this PC (2026-10-05).
-// Every failure becomes an AIError whose message can go straight into Settings.
+// Ollama's REST API, with the shapes Ollama 0.35.1 sent on this PC (2026-10-05),
+// checked again on 0.40.0 (2026-10-07). Every failure becomes an AIError whose
+// message can go straight into Settings.
 
 /** Listing models only reads local files, so a few seconds means Ollama is stuck. */
 const QUICK_TIMEOUT_MS = 5_000
@@ -27,6 +28,8 @@ const chatLine = z.object({
 })
 const tagsReply = z.object({ models: z.array(z.object({ name: z.string() })) })
 const versionReply = z.object({ version: z.string() })
+// /api/generate with no prompt only loads the model, then answers done.
+const loadReply = z.object({ done: z.boolean() })
 
 /** Runs one network step (the fetch, a body read), turning any failure into an AIError. */
 type Net = <R>(step: () => Promise<R>) => Promise<R>
@@ -45,10 +48,28 @@ interface Opened {
   net: Net
 }
 
+export interface OllamaProvider extends AIProvider {
+  /**
+   * Loads a model into memory without asking it anything (an empty prompt, as
+   * Ollama documents), so the next real call doesn't wait for the load.
+   */
+  warm(model: string, signal?: AbortSignal): Promise<void>
+}
+
+/** A load from disk took up to 60 s on this PC (2026-10-07). Nobody waits on a warm-up. */
+export const WARM_TIMEOUT_MS = 120_000
+
 export function createOllamaProvider(opts: {
   url: () => string
   fetch?: typeof fetch
-}): AIProvider {
+  /** How long Ollama keeps a model loaded after a call (`keep_alive`), or Ollama's own default. */
+  keepAlive?: () => string | undefined
+}): OllamaProvider {
+  const keepAlive = (): { keep_alive?: string } => {
+    const value = opts.keepAlive?.()
+    return value ? { keep_alive: value } : {}
+  }
+
   /** Sends one request. Resolves with a 2xx response; anything else throws an AIError. */
   async function open(base: string, path: string, call: Call): Promise<Opened> {
     // "Local" is the privacy promise: prompts for Ollama are never redacted.
@@ -121,7 +142,8 @@ export function createOllamaProvider(opts: {
           // true fails on models that can't think.
           think: false,
           // Same input, same answer: a rating shouldn't change between runs.
-          options: { temperature: 0 }
+          options: { temperature: 0 },
+          ...keepAlive()
         }
       })
       const reply = parseOllama(await net(() => res.text()), chatReply, base)
@@ -136,9 +158,26 @@ export function createOllamaProvider(opts: {
         timeoutMs: req.timeoutMs,
         // No temperature: free text keeps the model's own sampling settings,
         // since greedy decoding can loop on long answers.
-        body: { model: req.model, messages: messagesOf(req), stream: true, think: false }
+        body: {
+          model: req.model,
+          messages: messagesOf(req),
+          stream: true,
+          think: false,
+          ...keepAlive()
+        }
       })
       return readStream(res, net, base, req.onText)
+    },
+
+    async warm(model: string, signal?: AbortSignal): Promise<void> {
+      const base = opts.url()
+      const { res, net } = await open(base, '/api/generate', {
+        model,
+        signal,
+        timeoutMs: WARM_TIMEOUT_MS,
+        body: { model, ...keepAlive() }
+      })
+      parseOllama(await net(() => res.text()), loadReply, base)
     },
 
     async listModels(signal?: AbortSignal): Promise<string[]> {

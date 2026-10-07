@@ -5,6 +5,7 @@ import type { ApprovalDecision, IslandSnapshot, PendingApproval } from '@shared/
 import { useNow } from '../lib/useNow'
 import { useIsland } from '../store'
 import { ApprovalCard, FeedbackCard } from '../views/ApprovalCard'
+import { AskPanel } from '../views/AskPanel'
 import { CompactView } from '../views/CompactView'
 import { ErrorCard, FinishedCard, WaitingCard } from '../views/Cards'
 import { ExpandedView } from '../views/ExpandedView'
@@ -28,7 +29,27 @@ export function Island(): React.JSX.Element {
   const setPinnedOpen = useIsland((s) => s.setPinnedOpen)
   const dismiss = useIsland((s) => s.dismiss)
   const showFeedback = useIsland((s) => s.showFeedback)
+  const openAsk = useIsland((s) => s.openAsk)
+  const closeAsk = useIsland((s) => s.closeAsk)
   const reduce = useReducedMotion() ?? false
+
+  // The file panel takes clicks and focus while it's open (ADR-027): main
+  // does that, so it hears about every change, but not the first "closed".
+  const askOpen = ui.askOpen === true
+  const told = useRef(false)
+  useEffect(() => {
+    if (!askOpen && !told.current) return
+    told.current = true
+    window.suri.setAskOpen(askOpen)
+  }, [askOpen])
+  useEffect(() => {
+    if (!askOpen) return
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') closeAsk()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [askOpen, closeAsk])
 
   const sessionCount = snapshot?.sessions.length ?? 0
   const busy = sessionCount > 0 || (snapshot?.approvals.length ?? 0) > 0
@@ -95,49 +116,54 @@ export function Island(): React.JSX.Element {
   }
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 top-0 flex justify-center">
-      <motion.div
-        ref={ref}
-        data-mode={view.mode}
-        onClick={onShapeClick}
-        className="pointer-events-auto relative overflow-hidden text-white"
-        initial={false}
-        animate={{
-          width: shape.width,
-          height: shape.height,
-          borderBottomLeftRadius: shape.radius,
-          borderBottomRightRadius: shape.radius,
-          backgroundColor: shape.background,
-          boxShadow: shape.glow,
-          opacity: view.mode === 'hidden' ? 0 : 1
-        }}
-        transition={reduce ? REDUCED : SPRING}
-      >
-        <AnimatePresence mode="wait" initial={false}>
-          <motion.div
-            key={view.card ? islandCardKey(view.card) : view.mode}
-            className="absolute inset-0"
-            initial={{ opacity: 0, scale: 0.96, filter: 'blur(6px)' }}
-            animate={{
-              opacity: 1,
-              scale: 1,
-              filter: 'blur(0px)',
-              transition: { delay: reduce ? 0 : 0.1, duration: 0.22 }
-            }}
-            exit={{ opacity: 0, scale: 0.98, filter: 'blur(3px)', transition: { duration: 0.1 } }}
-          >
-            <IslandContent
-              view={view}
-              snapshot={snapshot}
-              now={now}
-              onOpen={openSession}
-              onDismiss={dismiss}
-              onDecide={decide}
-            />
-          </motion.div>
-        </AnimatePresence>
-      </motion.div>
-    </div>
+    <>
+      {/* The panel takes every click; one outside it closes it. */}
+      {view.mode === 'ask' && <div className="fixed inset-0" onMouseDown={closeAsk} />}
+      <div className="pointer-events-none fixed inset-x-0 top-0 flex justify-center">
+        <motion.div
+          ref={ref}
+          data-mode={view.mode}
+          onClick={onShapeClick}
+          className="pointer-events-auto relative overflow-hidden text-white"
+          initial={false}
+          animate={{
+            width: shape.width,
+            height: shape.height,
+            borderBottomLeftRadius: shape.radius,
+            borderBottomRightRadius: shape.radius,
+            backgroundColor: shape.background,
+            boxShadow: shape.glow,
+            opacity: view.mode === 'hidden' ? 0 : 1
+          }}
+          transition={reduce ? REDUCED : SPRING}
+        >
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={view.card ? islandCardKey(view.card) : view.mode}
+              className="absolute inset-0"
+              initial={{ opacity: 0, scale: 0.96, filter: 'blur(6px)' }}
+              animate={{
+                opacity: 1,
+                scale: 1,
+                filter: 'blur(0px)',
+                transition: { delay: reduce ? 0 : 0.1, duration: 0.22 }
+              }}
+              exit={{ opacity: 0, scale: 0.98, filter: 'blur(3px)', transition: { duration: 0.1 } }}
+            >
+              <IslandContent
+                view={view}
+                snapshot={snapshot}
+                now={now}
+                onOpen={openSession}
+                onDismiss={dismiss}
+                onDecide={decide}
+                onAsk={openAsk}
+              />
+            </motion.div>
+          </AnimatePresence>
+        </motion.div>
+      </div>
+    </>
   )
 }
 
@@ -147,7 +173,8 @@ function IslandContent({
   now,
   onOpen,
   onDismiss,
-  onDecide
+  onDecide,
+  onAsk
 }: {
   view: IslandView
   snapshot: IslandSnapshot | null
@@ -155,10 +182,13 @@ function IslandContent({
   onOpen: (sessionId: string) => void
   onDismiss: (cardKey: string) => void
   onDecide: (approval: PendingApproval, decision: ApprovalDecision) => void
+  onAsk: () => void
 }): React.JSX.Element | null {
   switch (view.mode) {
     case 'hidden':
       return null
+    case 'ask':
+      return <AskPanel />
     case 'peek':
       return <PeekView snapshot={snapshot} />
     case 'compact':
@@ -166,7 +196,7 @@ function IslandContent({
         <CompactView session={view.focus} count={snapshot?.sessions.length ?? 1} />
       ) : null
     case 'expanded':
-      return <ExpandedView snapshot={snapshot} now={now} onOpen={onOpen} />
+      return <ExpandedView snapshot={snapshot} now={now} onOpen={onOpen} onAsk={onAsk} />
     case 'card': {
       const card = view.card
       if (!card) return null

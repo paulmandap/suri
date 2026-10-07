@@ -4,7 +4,7 @@
 
 Suri lives in a small Dynamic Island–style bar at the top of your screen. It shows what Claude Code is doing, lets you allow or deny permission requests with one click, explains risky commands in plain English, and sums up each session, using local models (Ollama) or Gemini.
 
-> **Status:** early development (Phase 6 of 8). Live Claude Code activity, one-click approvals, a safety net for risky commands, and a Settings window that installs Suri's hooks into Claude Code with a diff preview and a backup. An AI risk explainer on every approval, a recap when Claude finishes, a local history of every request, and daily standup notes, using local models through Ollama or Gemini, with secrets removed before anything goes to the cloud. Each AI feature is measured with an eval (`evals/`).
+> **Status:** early development (Phase 7 of 8). Live Claude Code activity, one-click approvals, a safety net for risky commands, and a Settings window that installs Suri's hooks into Claude Code with a diff preview and a backup. An AI risk explainer on every approval, a recap when Claude finishes, a local history of every request, daily standup notes, and questions about a file you drop on the island, using local models through Ollama or Gemini, with secrets removed before anything goes to the cloud. Each AI feature is measured with an eval (`evals/`).
 
 ## Development
 
@@ -21,3 +21,7 @@ How Suri talks to Claude Code, and what was measured: [`docs/spike-hooks.md`](do
 ## Credits
 
 Inspired by [Coucou](https://github.com/louis-cfm/coucou) (MIT) by Louis Raillé. Suri is an independent project with its own code, name and character.
+
+## License
+
+The code is [MIT](LICENSE). The Suri mascot and its art (`assets/mascot/`, the app and tray icons) are all rights reserved: see [`assets/mascot/LICENSE.md`](assets/mascot/LICENSE.md).

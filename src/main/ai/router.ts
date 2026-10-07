@@ -32,9 +32,24 @@ export interface RoutedResult<T> {
   redactions: number
 }
 
+/**
+ * A prompt that depends on who answers: Gemini can take a whole document,
+ * a local model only the parts that fit its context (file questions, ADR-027).
+ * Asked again for the fallback model, so it never gets Gemini's long prompt.
+ */
+export interface PerRoute {
+  promptFor?: (route: Route) => string
+}
+
 export interface AIRouter {
-  generateJSON<T>(feature: Feature, req: Omit<JsonRequest<T>, 'model'>): Promise<RoutedResult<T>>
-  streamText(feature: Feature, req: Omit<TextRequest, 'model'>): Promise<RoutedResult<string>>
+  generateJSON<T>(
+    feature: Feature,
+    req: Omit<JsonRequest<T>, 'model'> & PerRoute
+  ): Promise<RoutedResult<T>>
+  streamText(
+    feature: Feature,
+    req: Omit<TextRequest, 'model'> & PerRoute
+  ): Promise<RoutedResult<string>>
 }
 
 type Text = Pick<ModelRequest, 'prompt' | 'system'>
@@ -67,7 +82,7 @@ export function createAIRouter(opts: {
 
   async function run<T>(
     feature: Feature,
-    req: Text & { signal?: AbortSignal },
+    req: Text & PerRoute & { signal?: AbortSignal },
     call: (provider: AIProvider, model: string, text: Text) => Promise<T>,
     mayFallBack: () => boolean = () => true
   ): Promise<RoutedResult<T>> {
@@ -75,7 +90,8 @@ export function createAIRouter(opts: {
     let fellBackFrom: RoutedResult<T>['fellBackFrom']
     for (const [i, route] of routes.entries()) {
       try {
-        const { redactions, ...text } = textFor(route, req)
+        const prompt = req.promptFor ? req.promptFor(route) : req.prompt
+        const { redactions, ...text } = textFor(route, { prompt, system: req.system })
         const started = clock()
         const value = await call(opts.providers[route.provider], route.model, text)
         return {
@@ -99,14 +115,17 @@ export function createAIRouter(opts: {
   return {
     generateJSON<T>(
       feature: Feature,
-      req: Omit<JsonRequest<T>, 'model'>
+      req: Omit<JsonRequest<T>, 'model'> & PerRoute
     ): Promise<RoutedResult<T>> {
       return run(feature, req, (provider, model, text) =>
         provider.generateJSON({ ...req, ...text, model })
       )
     },
 
-    streamText(feature: Feature, req: Omit<TextRequest, 'model'>): Promise<RoutedResult<string>> {
+    streamText(
+      feature: Feature,
+      req: Omit<TextRequest, 'model'> & PerRoute
+    ): Promise<RoutedResult<string>> {
       // Once the caller has shown part of an answer, a second model would
       // start over mid-sentence, so a failure after that is final.
       let shown = false

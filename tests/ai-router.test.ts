@@ -106,6 +106,25 @@ describe('createAIRouter', () => {
     }
   )
 
+  it('asks for a prompt per model, so the fallback never gets Gemini’s long one', async () => {
+    const ollama = fake('ollama', () => ({ ok: true }))
+    const gemini = fake('gemini', () => failWith('rate-limit'))
+    const asked: string[] = []
+    const result = await router(ollama, gemini).generateJSON('fileQa', {
+      prompt: 'unused',
+      promptFor: (route) => {
+        asked.push(route.provider)
+        return route.provider === 'gemini' ? `whole document with ${TOKEN}` : 'the best chunks only'
+      },
+      schema: SCHEMA
+    })
+    expect(asked).toEqual(['gemini', 'ollama'])
+    // Redaction still runs on the prompt bound for the cloud.
+    expect(gemini.sent[0]?.prompt).toBe('whole document with [REDACTED]')
+    expect(ollama.sent[0]?.prompt).toBe('the best chunks only')
+    expect(result.fellBackFrom?.kind).toBe('rate-limit')
+  })
+
   it('stops at a cancel instead of falling back', async () => {
     const ollama = fake('ollama', () => ({ ok: true }))
     const gemini = fake('gemini', () => failWith('aborted'))

@@ -17,6 +17,10 @@ export interface AiSettings {
   /** The local model that answers when Gemini can't (rate limit, offline, no key). */
   fallbackModel: string
   routes: Record<Feature, Route>
+  /** Start Ollama's app when Suri starts and Ollama isn't running (ADR-024). */
+  startOllama: boolean
+  /** Load the local model when Claude Code starts working and keep it loaded meanwhile (ADR-024). */
+  keepWarm: boolean
 }
 
 export const FEATURES: readonly { id: Feature; label: string; built: boolean }[] = [
@@ -46,7 +50,28 @@ export const DEFAULT_AI: AiSettings = {
     recap: { provider: 'ollama', model: DEFAULT_LOCAL_MODEL },
     fileQa: { provider: 'gemini', model: DEFAULT_GEMINI_MODEL },
     digest: { provider: 'gemini', model: DEFAULT_GEMINI_MODEL }
-  }
+  },
+  // Slow is bad (Paul, 2026-10-07): both on unless switched off in Settings.
+  startOllama: true,
+  keepWarm: true
+}
+
+/**
+ * How long Ollama keeps the model loaded after Suri's last call while
+ * "keep warm" is on. Suri refreshes it every few minutes while Claude Code
+ * works, so in practice it unloads this long after Claude Code goes quiet.
+ */
+export const KEEP_WARM_FOR = '15m'
+
+/**
+ * The local model to keep loaded: the risk check's, since Paul waits on that
+ * one, else the recap's. None when both use Gemini, or keep warm is off.
+ */
+export function warmModel(ai: AiSettings): string | null {
+  if (!ai.keepWarm) return null
+  if (ai.routes.risk.provider === 'ollama') return ai.routes.risk.model
+  if (ai.routes.recap.provider === 'ollama') return ai.routes.recap.model
+  return null
 }
 
 /** Ollama names, e.g. `qwen3.5:9b` or `hf.co/user/repo:Q4_K_M`. */
@@ -116,6 +141,8 @@ export interface AiPatch {
   ollamaUrl?: string
   fallbackModel?: string
   route?: { feature: Feature; provider: ProviderId; model: string }
+  startOllama?: boolean
+  keepWarm?: boolean
 }
 
 /** Applies a (validated) change from Settings. */
@@ -128,6 +155,8 @@ export function applyAiPatch(ai: AiSettings, patch: AiPatch): AiSettings {
           ...ai.routes,
           [patch.route.feature]: { provider: patch.route.provider, model: patch.route.model }
         }
-      : ai.routes
+      : ai.routes,
+    startOllama: patch.startOllama ?? ai.startOllama,
+    keepWarm: patch.keepWarm ?? ai.keepWarm
   }
 }

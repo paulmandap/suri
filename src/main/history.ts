@@ -17,7 +17,7 @@ import {
   type TurnView
 } from '@shared/history'
 import { digestSchema, parseColumn, recapSchema, turnFactsSchema } from '@shared/history-schemas'
-import type { HookEvent } from '@shared/hook-events'
+import { isReplay, type HookEvent } from '@shared/hook-events'
 import { redactSecrets } from '@shared/redact'
 import { projectName } from '@shared/sessions'
 import type { ActivityKind, ActivityStatus, PendingApproval, RiskLevel } from '@shared/types'
@@ -72,6 +72,11 @@ export interface History {
   saveDigest(digest: Digest): void
   /** Drops old rows and closes turns that never ended. */
   prune(): void
+  /**
+   * Deletes everything, and rewrites the file so the old rows don't linger in
+   * its free space. Returns how many turns there were. Throws if it fails.
+   */
+  clear(): number
   onChange(listener: () => void): () => void
   close(): void
 }
@@ -419,7 +424,7 @@ export function createHistory(db: DatabaseSync, opts: HistoryOptions = {}): Hist
     record: (event) =>
       safely('recording an event', null, () => {
         // `npm run replay` marks its payloads, so demos stay out of Paul's history.
-        if ((event as { suri_replay?: unknown }).suri_replay === true) return null
+        if (isReplay(event)) return null
         const { turn, changed } = transaction(db, () => apply(event, clock()))
         if (changed) emit()
         return turn
@@ -522,6 +527,19 @@ export function createHistory(db: DatabaseSync, opts: HistoryOptions = {}): Hist
           q.pruneDigests.run(keep)
         })
       })
+    },
+
+    clear() {
+      const { n } = db.prepare('SELECT COUNT(*) AS n FROM turns').get() as { n: number }
+      transaction(db, () => {
+        db.exec('DELETE FROM decisions; DELETE FROM digests; DELETE FROM steps; DELETE FROM turns;')
+      })
+      // VACUUM rebuilds the file without the deleted pages; the checkpoint
+      // empties the write-ahead log, which held copies of them too.
+      db.exec('VACUUM')
+      db.exec('PRAGMA wal_checkpoint(TRUNCATE)')
+      emit()
+      return Number(n)
     },
 
     onChange(listener) {

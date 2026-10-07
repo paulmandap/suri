@@ -15,6 +15,8 @@ export interface TrayState {
 
 export interface TrayActions {
   open(): void
+  /** The island's file panel: drop a file, ask a question. */
+  openAsk(): void
   /** History on today, with the standup notes written if there are none yet. */
   openDigest(): void
   openHistory(): void
@@ -54,6 +56,7 @@ export function createTray(getState: () => TrayState, actions: TrayActions): Sur
       ...(fix ? [{ label: fix, click: actions.openSettings }] : []),
       { type: 'separator' },
       { label: 'Open', click: actions.open },
+      { label: 'Ask about a file…', click: actions.openAsk },
       { label: "Today's digest", click: actions.openDigest },
       { label: 'History…', click: actions.openHistory },
       { type: 'separator' },

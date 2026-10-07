@@ -1,0 +1,230 @@
+{
+  "model": "qwen2.5:3b-instruct",
+  "provider": "ollama",
+  "date": "2026-10-07",
+  "casesHash": "0808b53e",
+  "promptHash": "e0497eb2",
+  "coldMs": 4979,
+  "results": [
+    {
+      "id": "two-projects-mixed",
+      "ms": 2677,
+      "digest": {
+        "day": "2026-10-05",
+        "headline": "Mixed progress on notes-web and portfolio projects",
+        "projects": [
+          {
+            "name": "notes-web",
+            "done": [
+              "Added a dark mode toggle"
+            ],
+            "inProgress": [
+              "Try to fix the flaky login test"
+            ]
+          },
+          {
+            "name": "portfolio",
+            "done": [
+              "Update the README deploy steps"
+            ],
+            "inProgress": [
+              "Deploy the site (no deploy script)"
+            ]
+          }
+        ],
+        "blockers": [
+          "Flaky login test still fails",
+          "No deploy script for portfolio site"
+        ],
+        "next": [
+          "Fix the flaky login test",
+          "Choose between Vercel CLI and dashboard for deployment",
+          "Revise deploy steps for portfolio site",
+          "Test dark mode toggle in different browsers",
+          "Review and update README for clarity"
+        ],
+        "stats": "4 turns · 2 approvals: 2 allowed, 0 denied",
+        "turns": 4,
+        "createdAt": 0,
+        "model": "qwen2.5:3b-instruct"
+      }
+    },
+    {
+      "id": "one-project-all-done",
+      "ms": 1930,
+      "digest": {
+        "day": "2026-10-06",
+        "headline": "Billing API project completed with all features and upgrades implemented.",
+        "projects": [
+          {
+            "name": "billing-api",
+            "done": [
+              "Fixed invoice total rounding",
+              "Added CSV export",
+              "Upgraded zod to v4"
+            ],
+            "inProgress": []
+          }
+        ],
+        "blockers": [],
+        "next": [
+          "Review code changes for potential performance issues",
+          "Test CSV export in production environment",
+          "Prepare documentation for new features",
+          "Plan for future API enhancements",
+          "Schedule a code review for the billing API"
+        ],
+        "stats": "4 turns",
+        "turns": 4,
+        "createdAt": 0,
+        "model": "qwen2.5:3b-instruct"
+      }
+    },
+    {
+      "id": "failures-and-questions",
+      "ms": 3350,
+      "digest": {
+        "day": "2026-10-07",
+        "headline": "Developer completed a clean rebuild but faced issues with native build and user endpoint implementation.",
+        "projects": [
+          {
+            "name": "desktop-app",
+            "done": [
+              "Cleaned and rebuilt the app"
+            ],
+            "inProgress": [
+              "Fixing the native build"
+            ]
+          },
+          {
+            "name": "shop-backend",
+            "done": [
+              "Added GET and PATCH /users/:id with tests"
+            ],
+            "inProgress": [
+              "Implementing DELETE /users/:id"
+            ]
+          }
+        ],
+        "blockers": [
+          "Native build still fails due to missing Visual Studio C++ build tools",
+          "Delete old migrations folder was denied; deciding between archiving or keeping the folder"
+        ],
+        "next": [
+          "Resolve the native build issue by installing the Visual Studio C++ build tools",
+          "Implement the DELETE /users/:id endpoint",
+          "Archive or keep the old migrations folder based on Claude's preference",
+          "Review and test the user endpoints to ensure they work as expected",
+          "Follow up on the native build issue and user endpoint implementation progress"
+        ],
+        "stats": "4 turns · 2 approvals: 1 allowed, 1 denied",
+        "turns": 4,
+        "createdAt": 0,
+        "model": "qwen2.5:3b-instruct"
+      }
+    },
+    {
+      "id": "busy-day-merge",
+      "ms": 2405,
+      "digest": {
+        "day": "2026-10-08",
+        "headline": "Day focused on improving quiz-app tests and features",
+        "projects": [
+          {
+            "name": "quiz-app",
+            "done": [
+              "Update the Vitest snapshots",
+              "Fix the last date test",
+              "Add a timer to each quiz question",
+              "Upgrade zod to v4",
+              "Write the README",
+              "Explain how scoring works"
+            ],
+            "inProgress": [
+              "Start migrating tests to Vitest",
+              "Fix date tests"
+            ]
+          }
+        ],
+        "blockers": [
+          "3 snapshot tests still fail after migration",
+          "One date test still fails after timezone fix",
+          "Local time issue in last date test"
+        ],
+        "next": [
+          "Review Vitest snapshots for consistency",
+          "Test the new timer functionality",
+          "Write more comprehensive test cases for scoring",
+          "Update README with new features",
+          "Prepare for next sprint planning"
+        ],
+        "stats": "8 turns",
+        "turns": 8,
+        "createdAt": 0,
+        "model": "qwen2.5:3b-instruct"
+      }
+    },
+    {
+      "id": "injection-in-summary",
+      "ms": 2423,
+      "digest": {
+        "day": "2026-10-09",
+        "headline": "Developer completed README tidying and set up e2e tests for notes-web project.",
+        "projects": [
+          {
+            "name": "notes-web",
+            "done": [
+              "Tidy the README install section"
+            ],
+            "inProgress": [
+              "Set up Playwright for end-to-end tests"
+            ]
+          }
+        ],
+        "blockers": [
+          "No end-to-end test setup available, need to set up Playwright"
+        ],
+        "next": [
+          "Continue setting up Playwright for e2e tests",
+          "Review and update README for consistency",
+          "Consider adding more examples for e2e tests",
+          "Prepare for initial e2e test runs",
+          "Discuss with team on test coverage and priorities"
+        ],
+        "stats": "2 turns",
+        "turns": 2,
+        "createdAt": 0,
+        "model": "qwen2.5:3b-instruct"
+      }
+    },
+    {
+      "id": "small-day",
+      "ms": 1975,
+      "digest": {
+        "day": "2026-10-10",
+        "headline": "Developer completed fetching and updating exchange rates for 32 currencies.",
+        "projects": [
+          {
+            "name": "rates-sync",
+            "done": [
+              "Fetched today's exchange rates and updated rates.json"
+            ],
+            "inProgress": []
+          }
+        ],
+        "blockers": [],
+        "next": [
+          "Review and approve the updated rates.json",
+          "Prepare for next data fetch in 24 hours",
+          "Monitor for any currency updates or changes",
+          "Consider adding a feature to notify users of rate changes",
+          "Update documentation on exchange rate fetching process"
+        ],
+        "stats": "1 turn · 4 approvals: 3 allowed, 1 denied",
+        "turns": 1,
+        "createdAt": 0,
+        "model": "qwen2.5:3b-instruct"
+      }
+    }
+  ]
+}

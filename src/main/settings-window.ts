@@ -84,6 +84,8 @@ export interface SettingsHandlers {
   testAi(provider: ProviderId): Promise<ConnectionTest>
   saveGeminiKey(key: string): Promise<UpdateResult>
   removeGeminiKey(): Promise<UpdateResult>
+  startOllama(): Promise<UpdateResult>
+  deleteHistory(): Promise<UpdateResult>
 }
 
 /** Main checks who sent each message and what is in it; the page is never trusted. */
@@ -148,5 +150,15 @@ export function registerSettingsIpc(h: SettingsHandlers): void {
   ipcMain.handle(SETTINGS_IPC.removeGeminiKey, (event): Promise<UpdateResult> => {
     if (!h.isSettings(event.sender)) return Promise.resolve({ ok: false, message: 'Not allowed.' })
     return h.removeGeminiKey()
+  })
+
+  ipcMain.handle(SETTINGS_IPC.startOllama, (event): Promise<UpdateResult> => {
+    if (!h.isSettings(event.sender)) return Promise.resolve({ ok: false, message: 'Not allowed.' })
+    return h.startOllama()
+  })
+
+  ipcMain.handle(SETTINGS_IPC.deleteHistory, (event): Promise<UpdateResult> => {
+    if (!h.isSettings(event.sender)) return Promise.resolve({ ok: false, message: 'Not allowed.' })
+    return h.deleteHistory()
   })
 }

@@ -1,0 +1,70 @@
+{
+  "model": "qwen2.5:7b-instruct",
+  "provider": "ollama",
+  "date": "2026-10-07",
+  "casesHash": "b75fc864",
+  "promptHash": "17016871",
+  "coldMs": 7865,
+  "results": [
+    {
+      "id": "port",
+      "ms": 2883,
+      "answer": "By default, Suri's hook server uses port 47821. This is specified in ADR-002, where it states that Claude Code POSTs every hook event to `http://127.0.0.1:<port>/hooks`, with the default port being 47821."
+    },
+    {
+      "id": "why-node-sqlite",
+      "ms": 4365,
+      "answer": "Suri used `node:sqlite` instead of `better-sqlite3` because `node:sqlite` works in both Electron 44 and Node 22.13+, whereas `better-sqlite3` needs to be compiled for Electron 44's Node (24.21, ABI 149) and for Node 22 (ABI 127). `electron-builder install-app-deps` builds `better-sqlite3` for one and breaks the other, but `node:sqlite` is built into Node now and can be used directly in both environments."
+    },
+    {
+      "id": "approval-wait",
+      "ms": 1861,
+      "answer": "Suri holds the permission request for up to 110 seconds before falling back to Claude Code's own prompt."
+    },
+    {
+      "id": "gemini-key",
+      "ms": 2637,
+      "answer": "The Gemini API key is stored in `%APPDATA%\\Suri\\secrets.json` as base64-encoded encrypted bytes using Electron's `safeStorage` (Windows DPAPI). It is written atomically and protected by encryption, ensuring that the key is not saved in plaintext."
+    },
+    {
+      "id": "cloud-secrets",
+      "ms": 2575,
+      "answer": "Before text is sent to a cloud model, secrets are redacted by the router. The router removes Suri's hook token and the Gemini key by exact value, as well as pattern-matched secrets such as private keys, passwords, and certain token shapes. This ensures that no sensitive information is sent to the cloud."
+    },
+    {
+      "id": "risk-model",
+      "ms": 3970,
+      "answer": "The risk check now uses `qwen3.5:9b`. Suri switched to this model because the initial `qwen3.5:9b` took about 50 seconds to load, which exceeded the 45-second limit for risk checks. After updating Ollama to version 0.40, the load time for `qwen3.5:9b` significantly reduced, making it suitable for risk checks."
+    },
+    {
+      "id": "safety-net",
+      "ms": 2517,
+      "answer": "The safety net answers `PreToolUse` with `\"ask\"` for high-risk commands, showing an approval card with the command and options to `Allow` or `Deny`. This ensures that Paul is prompted before executing potentially dangerous commands like `rm -rf`, `force push`, or `curl | sh`."
+    },
+    {
+      "id": "price",
+      "ms": 1807,
+      "answer": "The document does not mention any cost associated with Suri licenses. It focuses on technical decisions and features rather than pricing."
+    },
+    {
+      "id": "linux-installer",
+      "ms": 1261,
+      "answer": "It doesn't say."
+    },
+    {
+      "id": "readme-what",
+      "ms": 553,
+      "answer": "Suri lives in a small Dynamic Island–style bar at the top of your screen."
+    },
+    {
+      "id": "readme-node",
+      "ms": 671,
+      "answer": "You need Node 22.13+ to run the tests. (surival-readme.md, under Development section)"
+    },
+    {
+      "id": "readme-users",
+      "ms": 335,
+      "answer": "It doesn't say how many people use Suri today."
+    }
+  ]
+}

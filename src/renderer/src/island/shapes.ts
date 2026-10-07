@@ -23,6 +23,8 @@ export const MAX_ROWS = 3
  * under the pointer when the AI's answer arrives.
  */
 export const APPROVAL_HEIGHT = 196
+/** The file panel; the window is 420 tall, and the glow needs a little room. */
+export const ASK_HEIGHT = 384
 
 export function islandShape(view: IslandView, sessionCount: number): IslandShape {
   switch (view.mode) {
@@ -37,6 +39,10 @@ export function islandShape(view: IslandView, sessionCount: number): IslandShape
       const height = sessionCount === 0 ? 132 : 56 + rows * ROW_HEIGHT
       return { width: 560, height, radius: 30, background: '#000000', glow: SOFT }
     }
+    case 'ask':
+      // Nearly the whole window (640 × 420): little of the screen is blocked
+      // while the panel takes every click (ADR-027).
+      return { width: 600, height: ASK_HEIGHT, radius: 30, background: '#000000', glow: SOFT }
     case 'card':
       if (view.card?.kind === 'approval') {
         // Turns red when the AI finds a danger the rules missed.

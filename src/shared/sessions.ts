@@ -155,7 +155,9 @@ function applyEvent(s: Session, event: HookEvent, now: number): Session {
         failedAt: undefined,
         errorMessage: undefined,
         recapping: undefined,
-        recap: undefined
+        recap: undefined,
+        // The finished card counts this turn, not the whole session.
+        stats: { tools: 0, edits: 0, linesAdded: 0, linesRemoved: 0 }
       }
 
     case 'PreToolUse': {

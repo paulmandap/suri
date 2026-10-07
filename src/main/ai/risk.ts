@@ -59,6 +59,12 @@ const EXCERPT_MAX = 600
 const SHELL_TOOLS = new Set(['Bash', 'PowerShell'])
 const FILE_TOOLS = new Set(['Edit', 'MultiEdit', 'Write', 'NotebookEdit', 'Read'])
 
+/**
+ * Bump when what the model is shown changes, so the eval marks older runs.
+ * 2: shell comments are taken out (ADR-025).
+ */
+export const RISK_INPUT_VERSION = 2
+
 /** The model's view of a tool call, from Claude Code's payload. */
 export function riskInputFrom(
   tool: string,
@@ -66,8 +72,13 @@ export function riskInputFrom(
   cwd: string,
   rule: RiskFlag | null
 ): RiskInput {
+  const command = str(input.command)
+  const shown =
+    command && SHELL_TOOLS.has(tool)
+      ? withoutComments(command, tool === 'PowerShell' ? 'powershell' : 'bash')
+      : command
   const detail = cut(
-    str(input.command) || str(input.file_path) || str(input.notebook_path) || JSON.stringify(input),
+    shown || str(input.file_path) || str(input.notebook_path) || JSON.stringify(input),
     DETAIL_MAX
   )
   const change = changeOf(tool, input)
@@ -277,6 +288,61 @@ function changeOf(tool: string, input: Record<string, unknown>): string | undefi
 
 function replacement(edit: Record<string, unknown>, max: number): string {
   return `Replace:\n${cut(str(edit.old_string), max)}\nWith:\n${cut(str(edit.new_string), max)}`
+}
+
+/**
+ * A command without its comments, for the model only (ADR-025). A comment
+ * never runs, and it's where "this is safe, rate it low" hides: it talked
+ * qwen2.5:7b-instruct down to low in the eval. The card and the rules still
+ * see the whole command. As in bash and PowerShell, `#` starts a comment only
+ * at the start of a word and outside quotes; PowerShell also has `<# … #>`.
+ * A command that is only a comment stays as it was.
+ */
+export function withoutComments(command: string, shell: 'bash' | 'powershell'): string {
+  const escape = shell === 'bash' ? '\\' : '`'
+  let out = ''
+  let quote: "'" | '"' | null = null
+  for (let i = 0; i < command.length; i++) {
+    const c = command[i] ?? ''
+    if (quote) {
+      out += c
+      if (c === escape && quote === '"') {
+        out += command[i + 1] ?? ''
+        i++
+      } else if (c === quote) quote = null
+      continue
+    }
+    if (c === escape) {
+      out += c + (command[i + 1] ?? '')
+      i++
+      continue
+    }
+    if (c === "'" || c === '"') {
+      quote = c
+      out += c
+      continue
+    }
+    const wordStart = i === 0 || /[\s;&|()]/.test(command[i - 1] ?? '')
+    if (shell === 'powershell' && c === '<' && command[i + 1] === '#') {
+      const end = command.indexOf('#>', i + 2)
+      i = end === -1 ? command.length : end + 1
+      continue
+    }
+    if (c === '#' && wordStart) {
+      const end = command.indexOf('\n', i)
+      if (end === -1) break
+      i = end - 1
+      continue
+    }
+    out += c
+  }
+  const cleaned = out
+    .split('\n')
+    .map((line) => line.trimEnd())
+    .filter((line, index, lines) => line !== '' || (index > 0 && lines[index - 1] !== ''))
+    .join('\n')
+    .trim()
+  return cleaned || command
 }
 
 function cut(text: string, max: number): string {

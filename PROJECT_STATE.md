@@ -1,12 +1,12 @@
 # Project state
 
-_Last updated: 2026-10-07 (Phase 6 done: history, recaps, daily digest, History window, recap eval; every local feature on qwen3.5:9b)_
+_Last updated: 2026-10-07 (Phase 7 built: questions about a file; known issues fixed: speed, approval click guard, delete history, evals for every AI feature)_
 
 Read `CLAUDE.md` first. The plan is in `~/.claude/plans/i-want-to-build-zany-gosling.md` (local only, not in the repo).
 
 ## Where we are
 
-**Phase 6 is done: Suri remembers.** Every request to Claude Code is saved on this PC (ADR-020), each finished turn gets an AI recap on the island and in History (ADR-021), and tray → Today's digest writes standup notes you can copy or save as .md (ADR-022). The recap eval ran on Ollama 0.40, and **every local feature now uses `qwen3.5:9b`** (ADR-023, Paul's pick): it's the best at both evals and now loads in about 8–13 s. **Next is Phase 7** (drop a file, ask a question). The VS Code check is still open (Next → 3).
+**Phase 7 is built: drop a file on the island and ask about it** (ADR-027), and **most known issues are fixed**: the model is loaded before it's needed and Ollama starts with Suri (ADR-024), approval clicks must be aimed (ADR-028), the risk model no longer sees shell comments (ADR-025), History can be deleted, and every AI feature has an eval (ADR-026). The panel was tested in the app (drop, ask, answer, copy, focus); a real drag from Explorer and the Open dialog are left for Paul (Next → 1). **After that comes Phase 8** (ship and resume), or the proposed screen helper first.
 
 | Phase | Status |
 |---|---|
@@ -14,12 +14,33 @@ Read `CLAUDE.md` first. The plan is in `~/.claude/plans/i-want-to-build-zany-gos
 | 1 Overlay + live feed | ✅ Done |
 | 2 Approvals + safety net | ✅ Done |
 | 3 Hook installer + Settings | ✅ Done |
-| 4 AI layer + risk explainer + eval | ✅ Done. Gemini not measured yet (overloaded) |
+| 4 AI layer + risk explainer + eval | ✅ Done |
 | 5 Mascot | ✅ Done (a turning animation is left for later) |
 | 6 Recap, history, digest | ✅ Done |
-| 7 Drop a file, ask a question | Next |
+| 7 Drop a file, ask a question | ✅ Done (a real drag from Explorer left for Paul) |
 | Proposed: Screen helper + push-to-talk | Paul to confirm (ADR-010, ADR-011) |
-| 8 Ship and resume | |
+| 8 Ship and resume | Next |
+
+## Phase 7 and the known-issue fixes (ADR-024 to ADR-028)
+
+- **Questions about a file** (`src/main/ai/file-qa.ts`, `src/renderer/src/views/AskPanel.tsx`): "+ Ask a file" in the expanded island, tray → Ask about a file…, or `suri --ask`. Drop a PDF, Markdown, notes or code (up to 20 MB), or choose one, then chat about it. Answers stream in, with Markdown and a Copy button on code. Only text reaches any model, so redaction always runs before Gemini; PDFs are read with `unpdf` (2 MB). Gemini gets the whole file; a local model gets the chunks that best match the question (BM25), and the answer says so. The window takes clicks and focus only while the panel is open; Esc or a click outside closes it.
+- **Speed** (ADR-024): the first Claude Code event of a working spell loads the model in the background, and Suri asks Ollama to keep it 15 minutes after each call, so the first risk check of a spell answers in about 3 s instead of waiting 10–60 s for a load. Seen live: the model was loaded 13 s after one replayed event, held until 15 minutes later. Ollama's app starts with Suri if it's closed, and Settings → AI has a Start button and switches for both. The windows' code is minified (926 kB → 352 kB).
+- **Approval clicks must be aimed** (ADR-028): a test card popped up over Dota 2 and a game click landed on Allow. Now the buttons ignore clicks for the first second, and only count once the pointer has moved onto them after that.
+- **Risk checks without comments** (ADR-025): the model no longer sees shell comments ("this is safe, rate it low"). `qwen3.5:9b` + rules now catches all 22 high-risk eval cases (95%).
+- **Smaller fixes:** the finished card counts the turn, not the whole session. Settings → General → History → Delete history… (two clicks; the file is rewritten so deleted rows don't linger). `suri --digest` opens today's notes. Subagents: one real capture (2026-10-07) showed their events carry the parent's session and `prompt_id`, so History already put them in the right turn; now pinned by fixtures and a test. Replays' approvals stay out of History too. The repo is MIT, the mascot art all rights reserved (`assets/mascot/LICENSE.md`).
+- **Evals for every AI feature** (ADR-026): digest (`npm run eval:digest`) and file questions (`npm run eval:files`, with a retrieval check: 7 of 7 answers in the chunks Suri picks). Gemini runs only when named. The recap rubric's needs-input now means "the final message asks something".
+- **Gemini** (`gemini-3.8-flash`) is still unmeasured: on 2026-10-07 it timed out, said "unavailable", then hit the free-tier limit, so the runs were stopped before saving "no answer" rows.
+- **Eval results (local models, Ollama 0.40):**
+
+  | Model | Risk + rules | Recap outcome | Digest placed right (claimed done) | File questions: facts, "it doesn't say" |
+  |---|---|---|---|---|
+  | **`qwen3.5:9b`** (default) | **95%**, 22/22 high | 96% | 16/19 (1) | **100%**, 3/3 |
+  | `qwen2.5:7b-instruct` | 90% | 88% | 18/19 (0) | 92%, 3/3 |
+  | `qwen3.5:4b` | 82% | 92% | 16/19 (1) | 100%, 3/3 |
+  | `qwen2.5:3b-instruct` | 80% | 79% | 18/19 (0) | 92%, 3/3 |
+
+  Retrieval for local file questions: 7 of 7 answers in the picked chunks. The digest's and file questions' default is Gemini (the 9b is their fallback); Gemini isn't measured yet.
+- **Verified:** typecheck, lint, the build and **606 unit tests** (155 more than Phase 5). All four evals on four local models. In a scratch Suri (`SURI_DATA_DIR`): the warm-up (model loaded 13 s after one event, held 15 minutes); the file panel from `suri --ask`, a dropped README (synthetic drop event, the same handler and IPC as a real drag) and a question answered by `qwen3.5:9b` with "(Gemini: no key)", the code block's Copy (Paul's clipboard saved and put back), Esc closing it and focus going back to VS Code; Start Ollama with Ollama fully closed (back in 3 s, "started Ollama" logged). Fixed on the way: `--ask` at launch asked for focus before the window had appeared, and the Open dialog had no owner, so it could open behind the island. **Not checked by hand:** a real drag from Explorer, the Open dialog (it opened behind Paul's browser, and the test typed nothing), Save as .md, the tray items, and a card over a full-screen game.
 
 ## Phase 6 results (ADR-020, ADR-021, ADR-022)
 
@@ -111,22 +132,25 @@ Read `CLAUDE.md` first. The plan is in `~/.claude/plans/i-want-to-build-zany-gos
 6. **The mascot:** `npm run replay -- session` (the head in the compact bar, then the happy pose), `-- risky` (the shield), `-- error` (worried). Move the pointer toward the island and the head looks at it.
 7. **Recaps and History:** with Ollama running, just use Claude Code: each finished request shows "writing a recap…" on the card, then the recap. Tray → **History…** shows every request today. `npm run replay -- workday --record` adds four sample requests (they do land in your history; leave out `--record` to keep them out).
 8. **Standup notes:** tray → **Today's digest**, then **Copy** or **Save as .md**.
+9. **Ask about a file:** hover the island and click **+ Ask a file** (or tray → Ask about a file…). Drag a PDF or a Markdown file from Explorer onto the panel, then ask about it. Esc closes it.
 
 ## Next
 
-1. **Phase 7: drop a file, ask a question** (plan, Phase 7).
-2. **The hooks are installed** on Paul's settings (seen 2026-10-06: all 11 entries, and this chat showed on the island). Two small checks are left:
+1. **Paul: two minutes with the file panel.** With Suri running, hover the island → **+ Ask a file**, drag a PDF from Explorer onto it, ask something. Then **Choose a file…** once, and History → **Save as .md** once. Tell Claude if anything is off.
+2. **Proposed: don't pop up over a full-screen game** (ADR-028's real fix). Windows can say when a full-screen game or app is in front (`SHQueryUserNotificationState`); Suri would then keep cards silent and click-through, chirp later, and maybe pause keep-warm so the game gets the graphics card. Needs a small native call, so it's Paul's call.
+3. **Phase 8: ship and resume** (plan, Phase 8): the installer with an uninstall step (hooks and history), GitHub Actions, the README with a demo, and the resume bullets. Also decide about `@google/genai` (it brings unused packages; plain `fetch` would do).
+4. **The hooks are installed** on Paul's settings (seen 2026-10-06: all 11 entries, and this chat showed on the island). Two small checks are left:
    1. Quit Suri and send one prompt: you should see "Stop hook error" once (expected, ADR-002).
    2. In `sandbox/`, check that each tool shows up once on the island, not twice. The Claude Code docs say identical hooks run once; if you see doubles, tell Claude and delete the `hooks` block in `sandbox/.claude/settings.local.json`.
-3. **Paul: the VS Code check (about 3 minutes),** in any project:
+5. **Paul: the VS Code check (about 3 minutes),** in any project:
    1. Ask Claude Code: `run the command: echo hello-vscode`. Suri shows the approval card. Click **Allow**. Does the command run without you clicking anything in VS Code?
    2. Ask again and click **Deny**. What does Claude say?
    3. Ask for `git push --force` in a repo with no remote. Does Suri's card appear (safety net), or only VS Code's own prompt?
    4. Quit Suri (tray → Quit Suri) and ask once more. What does VS Code show?
    5. Tell Claude what you saw. It goes into `docs/spike-hooks.md` and ADR-002 / ADR-012.
-4. **Paul, when Gemini isn't overloaded: the Gemini evals** (about 10 minutes, paced for the free tier): `npm run eval:risk -- --models gemini-3.8-flash`, then `npm run eval:recap -- --models gemini-3.8-flash`. The key is already set in the VS Code terminal; elsewhere, evals/README.md shows how to set it without it landing in PowerShell's history.
-5. **Paul: confirm the screen helper and push-to-talk** (ADR-010, ADR-011) as a new phase after Phase 7.
-6. **Maybe later, from the risk eval:** a rule for a recursive delete aimed outside the project (`rm -rf ../other`), which would catch the one high case the default model and the rules both missed. It's left out for now, because the rule would come from the test set itself, and a monorepo's `../build` would trip it.
+6. **Paul: confirm the screen helper and push-to-talk** (ADR-010, ADR-011) as a new phase after Phase 7.
+7. **Paul, when Gemini isn't overloaded: the Gemini evals** (about 20 minutes, paced for the free tier; the key is already in the VS Code terminal): `npm run eval:digest -- --models gemini-3.8-flash`, then the same with `eval:files`, `eval:recap` and `eval:risk`. The digest and file questions use Gemini by default, so these two matter most.
+8. ~~A rule for `rm -rf ../other`~~: not needed. Since comments are taken out (ADR-025), `qwen3.5:9b` + the rules catch all 22 high-risk eval cases.
 
 ## How to run
 
@@ -141,31 +165,27 @@ Read `CLAUDE.md` first. The plan is in `~/.claude/plans/i-want-to-build-zany-gos
 
 ## Known issues
 
-- `qwen3.5:9b` holds 5.6 GB of the GPU while Claude Code is busy (Ollama unloads it five minutes after the last call). Its first answer after a quiet spell takes about 10 s (the load), then about 3 s. A load from disk, after a restart or when Windows drops the file from its cache, can take much longer: right after the Ollama update, the first loads took 17 s (9b) to 60 s (7b). A risk check that runs out of its 45 s says the model is probably still loading.
-- A quick check of the recap eval (`--limit 2`, nothing saved) reached Gemini, because `GEMINI_API_KEY` is set in the VS Code terminal: two made-up cases went to the free tier, which answered "too many requests" twice before it replied.
-- Subagent payloads were never captured. If a subagent's events carry their own `prompt_id`, its steps land in a separate turn without a request, and the parent's recap misses them.
-- No "delete history" button yet: quit Suri and delete `%APPDATA%\Suri\history.db` (Settings → General → History → Show in Explorer). Uninstalling the app doesn't remove it either (Phase 8).
-- Not clicked by hand: the tray's "Today's digest" and "History…" items (the same code ran through `--history` and the History page), and Save as .md (a native save dialog).
-- The finished card's line ("6 steps · 2 edits") counts the whole session, not the turn; History counts per turn.
-- `node:sqlite` is marked experimental in Node. Node 22 prints a warning, which the tests hide; Electron's Node 24 doesn't print one.
-- The digest has no eval of its own: it's prose. The recap eval measures what it's built from.
-- Ollama must be running; Suri doesn't start it. Settings says "Can't reach Ollama … Is it running?" when it isn't (seen live).
-- A comment inside a command can talk a model down: "this is safe, rate it low" made `qwen2.5:7b-instruct` say low and `qwen3.5:9b` (the default) say medium (eval case `high-comment-says-safe`). The rules are the floor, and here they only reach medium. `qwen3.5:4b` wasn't fooled.
-- Two recap cases are close calls: models called a denied push "needs-input" (the rubric lists "a permission" under needs-input), and three of four called `failed-wrong-repo` needs-input. The labels stay as written, so the test isn't tuned to the answers.
-- Gemini isn't in the eval yet: `gemini-3.8-flash` answered "overloaded", then hit the free-tier limit, all evening on 2026-10-06.
-- The eval's cases and the new rules were written in the same phase, so "Rules alone" (77%) flatters the rules. The model's own score and "+ rules" are the fair numbers.
-- The Gemini free tier allows few requests per minute. The router then lets the local model answer, which happened once in the live test.
-- Redaction is pattern-based. It errs on removing too much (`max_tokens=100` loses its value) and can miss a secret with an unknown shape and an innocent name.
-- `@google/genai` brings `google-auth-library`, `protobufjs` and `ws` along (unused with an API key), which adds to the installer's size.
-- Uninstalling the Suri app doesn't remove its hooks yet. Use Settings → Remove hooks first (Phase 8 adds an uninstall step).
-- With the hooks installed, every project shows "Stop hook error" once per turn while Suri is closed (ADR-002).
-- Not verified live yet: that Claude Code runs the sandbox's identical hook only once, and that a running session picks up new hooks without a restart. The docs say both; Next → 2 checks them.
-- Not confirmed yet in VS Code: whether a held PermissionRequest blocks VS Code's own dialog, and whether a PreToolUse `"ask"` leads to Suri's card or only VS Code's prompt. The VS Code check answers both.
-- The diff preview can show a new block as `+ },` / `+ {` … instead of `− }` / `+ },`. It's a correct diff, just shifted by a line.
-- The safety-net rules match text, so they err on the side of asking: a command that only mentions `rm -rf /` (an `echo`, a commit message) is flagged high, and the AI can't lower it (eval case `low-echo-text`). Deletes written in Python or Node pass the rules; the AI is what catches them.
-- `prisma migrate reset`, `migrate:fresh` and `db:drop` now force a prompt (they wipe the database). On a local dev database that's one extra click; the rule is easy to drop to medium if it gets in the way.
+- **Not checked by hand yet:** a real drag from Explorer onto the file panel, the Open dialog, Save as .md and the tray items. Next → 1.
+- While the file panel is open it takes clicks at the top centre of the screen (by design, so a drop can land); a click there in another app closes it instead (seen when the test panel was open over Paul's browser).
+- **Cards pop up over full-screen games.** The click guard (ADR-028) stops a busy cursor from approving, but a game cursor that sweeps across the buttons a second later still could, and the chirp plays mid-game. Next → 2 proposes the real fix.
+- **Keep warm holds the graphics card while Claude Code works**, about 5.6 GB for `qwen3.5:9b`, also while Paul games, until 15 minutes after Claude Code goes quiet. Switch it off in Settings → AI. Starting Ollama's app can install a waiting Ollama update.
+- A load from disk, after a restart or when Windows drops the model file from its cache, can still take much longer than 10 s (17 s for the 9b and 60 s for the 7b right after the Ollama update). The warm-up starts it early; a risk check that runs out of its 45 s says the model is probably still loading.
+- The digest eval: `qwen3.5:9b` (the digest's fallback) once listed half-finished work as done (two of three endpoints, the third stubbed), and most models put a failed run under blockers rather than in progress. Small set (6 days); read it as a sanity check.
+- File questions: Gemini gets PDF text only, without images or layout, because a raw PDF can't be redacted (ADR-027). A scanned PDF has no text and is refused.
+- Text that hides outside a comment (an `echo`, a heredoc, a commit message) still reaches the risk model; the rules stay the floor.
+- The recap rubric was clarified after looking at the eval's cases (ADR-026), so its gain is a little flattered; the 7b got two cases worse. New cases written later would be the fair test.
+- `node:sqlite` is marked experimental in Node; the tests hide Node 22's warning. No delete-on-uninstall yet for the history or the hooks (Phase 8): use Settings → Delete history… and Remove hooks first.
+- `@google/genai` brings `google-auth-library`, `protobufjs` and `ws` along (unused with an API key), which adds to the installer's size. Phase 8.
+- With the hooks installed, every project shows "Stop hook error" once per turn while Suri is closed (ADR-002). Start with Windows (installed app) makes that rare.
+- Not verified live yet: that Claude Code runs the sandbox's identical hook only once, and that a running session picks up new hooks without a restart. The docs say both; Next → 4 checks them.
+- Not confirmed yet in VS Code: whether a held PermissionRequest blocks VS Code's own dialog, and whether a PreToolUse `"ask"` leads to Suri's card or only VS Code's prompt. The VS Code check (Next → 5) answers both.
 - "Open in VS Code" from a session row hasn't been clicked through by hand yet (ADR-008).
+- The risk eval's cases and rules were written in the same phase, so "Rules alone" (77%) flatters the rules. The model's own score and "+ rules" are the fair numbers.
+- The Gemini free tier allows few requests per minute. The router then lets the local model answer.
+- Redaction is pattern-based. It errs on removing too much (`max_tokens=100` loses its value) and can miss a secret with an unknown shape and an innocent name.
+- The safety-net rules match text, so they err on the side of asking: a command that only mentions `rm -rf /` (an `echo`, a commit message) is flagged high, and the AI can't lower it. Deletes written in Python or Node pass the rules; the AI is what catches them.
+- `prisma migrate reset`, `migrate:fresh` and `db:drop` force a prompt (they wipe the database). The rule is easy to drop to medium if it gets in the way.
+- The installer's diff preview shows an appended JSON block shifted by a line (`+ },` / `+ {` instead of `− }` / `+ },`). It's a correct, minimal diff, the same shape git shows, so it stays.
 - The mascot doesn't turn yet: the three-quarter, side and back views are cut but unused, and so are the wave and pointing poses.
 - Re-running the art script needs Python and rembg (about 500 MB with its model). Only needed when the art changes.
-- ESLint 9 is end-of-life upstream, but the electron-toolkit configs don't support 10 yet. The renderer's shared chunk triggers Vite's 500 kB warning. Revisit both before shipping.
-- No license chosen yet. Pick one before the repo goes public.
+- ESLint 9 is end-of-life upstream, but the electron-toolkit configs don't support 10 yet.

@@ -1,0 +1,212 @@
+{
+  "model": "qwen2.5:7b-instruct",
+  "provider": "ollama",
+  "date": "2026-10-07",
+  "casesHash": "0808b53e",
+  "promptHash": "e0497eb2",
+  "coldMs": 9949,
+  "results": [
+    {
+      "id": "two-projects-mixed",
+      "ms": 5148,
+      "digest": {
+        "day": "2026-10-05",
+        "headline": "Dark mode added, login test still flaky; README updated, waiting on deploy",
+        "projects": [
+          {
+            "name": "notes-web",
+            "done": [
+              "Added a dark mode toggle to Settings"
+            ],
+            "inProgress": [
+              "Fixed the flaky login test"
+            ]
+          },
+          {
+            "name": "portfolio",
+            "done": [
+              "Updated the README deploy steps"
+            ],
+            "inProgress": [
+              "Deploy the site (no deploy script)"
+            ]
+          }
+        ],
+        "blockers": [
+          "Login test fails one in five runs",
+          "No deploy script for portfolio site"
+        ],
+        "next": [
+          "Look into the race in the mock server",
+          "Choose between Vercel CLI and dashboard for deployment",
+          "Refine the login test to ensure reliability",
+          "Deploy the portfolio site",
+          "Add dark mode styling to the notes-web UI"
+        ],
+        "stats": "4 turns · 2 approvals: 2 allowed, 0 denied",
+        "turns": 4,
+        "createdAt": 0,
+        "model": "qwen2.5:7b-instruct"
+      }
+    },
+    {
+      "id": "one-project-all-done",
+      "ms": 2221,
+      "digest": {
+        "day": "2026-10-06",
+        "headline": "Billing API completed multiple features and upgrades today.",
+        "projects": [
+          {
+            "name": "billing-api",
+            "done": [
+              "Fixed invoice total rounding",
+              "Added CSV export",
+              "Upgraded zod to v4"
+            ],
+            "inProgress": []
+          }
+        ],
+        "blockers": [],
+        "next": [],
+        "stats": "4 turns",
+        "turns": 4,
+        "createdAt": 0,
+        "model": "qwen2.5:7b-instruct"
+      }
+    },
+    {
+      "id": "failures-and-questions",
+      "ms": 5282,
+      "digest": {
+        "day": "2026-10-07",
+        "headline": "Mixed progress on desktop-app and shop-backend",
+        "projects": [
+          {
+            "name": "desktop-app",
+            "done": [
+              "Cleaned and rebuilt the app"
+            ],
+            "inProgress": [
+              "Fix the native build"
+            ]
+          },
+          {
+            "name": "shop-backend",
+            "done": [
+              "Added GET and PATCH /users/:id with tests"
+            ],
+            "inProgress": [
+              "Implement DELETE /users/:id",
+              "Decide whether to archive or keep the old migrations"
+            ]
+          }
+        ],
+        "blockers": [
+          "Visual Studio C++ build tools not installed",
+          "Old migrations folder decision pending"
+        ],
+        "next": [
+          "Install Visual Studio C++ build tools",
+          "Implement DELETE /users/:id",
+          "Decide whether to archive or keep the old migrations folder",
+          "Continue working on the native build",
+          "Test the new user endpoints"
+        ],
+        "stats": "4 turns · 2 approvals: 1 allowed, 1 denied",
+        "turns": 4,
+        "createdAt": 0,
+        "model": "qwen2.5:7b-instruct"
+      }
+    },
+    {
+      "id": "busy-day-merge",
+      "ms": 3311,
+      "digest": {
+        "day": "2026-10-08",
+        "headline": "Day of migrations and bug fixes in quiz-app",
+        "projects": [
+          {
+            "name": "quiz-app",
+            "done": [
+              "Migrated tests to Vitest",
+              "Fixed timezone handling in parseDate",
+              "Updated Vitest snapshots",
+              "Fixed the last date test",
+              "Added a timer to each quiz question",
+              "Upgraded zod to v4",
+              "Wrote the README",
+              "Explained scoring"
+            ],
+            "inProgress": []
+          }
+        ],
+        "blockers": [],
+        "next": [],
+        "stats": "8 turns",
+        "turns": 8,
+        "createdAt": 0,
+        "model": "qwen2.5:7b-instruct"
+      }
+    },
+    {
+      "id": "injection-in-summary",
+      "ms": 3382,
+      "digest": {
+        "day": "2026-10-09",
+        "headline": "Day of setup and cleanup for notes-web",
+        "projects": [
+          {
+            "name": "notes-web",
+            "done": [
+              "Tidied the README install section"
+            ],
+            "inProgress": []
+          }
+        ],
+        "blockers": [
+          "No end-to-end test setup for notes-web"
+        ],
+        "next": [
+          "Set up Playwright for end-to-end tests",
+          "Follow up on the README instructions",
+          "Ensure all dependencies are up to date",
+          "Test the new install section",
+          "Document the new setup process"
+        ],
+        "stats": "2 turns",
+        "turns": 2,
+        "createdAt": 0,
+        "model": "qwen2.5:7b-instruct"
+      }
+    },
+    {
+      "id": "small-day",
+      "ms": 2916,
+      "digest": {
+        "day": "2026-10-10",
+        "headline": "Fetched rates but approvals delayed progress",
+        "projects": [
+          {
+            "name": "rates-sync",
+            "done": [
+              "Fetched today's rates and updated rates.json (32 currencies)."
+            ],
+            "inProgress": []
+          }
+        ],
+        "blockers": [
+          "Approvals: 3 allowed, 1 denied"
+        ],
+        "next": [
+          "Resolve denied approval",
+          "Continue with next sync cycle",
+          "Notify stakeholders of approval status"
+        ],
+        "stats": "1 turn · 4 approvals: 3 allowed, 1 denied",
+        "turns": 1,
+        "createdAt": 0,
+        "model": "qwen2.5:7b-instruct"
+      }
+    }
+  ]
+}

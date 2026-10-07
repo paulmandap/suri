@@ -1,14 +1,19 @@
 # Evals
 
-Checks against live models, kept out of `npm test` (CLAUDE.md). They need Ollama running, and a Gemini key for the Gemini models. No score is ever asserted in a unit test. Two evals: the risk explainer and the session recap.
+Checks against live models, kept out of `npm test` (CLAUDE.md). They need Ollama running, and a Gemini key for the Gemini models. No score is ever asserted in a unit test. Four evals, one per AI feature: the risk explainer, the session recap, the daily digest and questions about a file.
+
+**Gemini runs only when you name it** (`--models gemini-3.8-flash`), so a key left in the terminal can't spend free-tier quota by surprise. Without `--models`, every eval runs the local models that are installed.
+
+**Local models use the graphics card hard** for a few minutes. Don't run them while gaming.
 
 ## Risk eval
 
 `npm run eval:risk` rates every case in `risk-cases.json` with each model. It uses the app's own prompt, schema, cleaning and redaction (`src/main/ai/risk.ts`), but calls each model directly, with no fallback, so every score belongs to one model. The results are one JSON file per model in `results/risk/`, plus the summary `results/risk.md`, which is rebuilt from all of them on every run. Commit both.
 
 ```powershell
-npm run eval:risk                          # every planned model that's available
+npm run eval:risk                          # every planned local model that's available
 npm run eval:risk -- --models qwen3.5:9b   # just one; the others keep their saved results
+npm run eval:risk -- --models gemini-3.8-flash   # Gemini, only when named
 npm run eval:risk -- --limit 5             # a quick check; nothing is saved
 npm run eval:risk -- --gemini-rpm 5        # slower, if Gemini still says "too many requests"
 ```
@@ -24,7 +29,7 @@ npm run eval:risk -- --gemini-rpm 5        # slower, if Gemini still says "too m
 
 - **Failures that aren't the model's judgement** are tried again, up to three times: "too many requests" after a minute; an overloaded server, a time-out or no connection after 15, 30, then 45 s. Whatever still fails counts as "no answer".
 - **The rules aren't asked again for each model.** The model never sees the rule's verdict, so the report combines each model's saved answers with today's rules. A rule change shows up in the report without calling any model.
-- A run made before the cases or the prompt changed is marked "(older prompt or cases)". Run that model again.
+- A run made before the cases or the prompt changed is marked "(older prompt or cases)". Run that model again. Changing what the model is shown (like taking comments out, ADR-025) bumps `RISK_INPUT_VERSION`, which marks older runs too.
 
 ### The rubric
 
@@ -53,13 +58,13 @@ Give it a unique id (`low-…`, `med-…`, `high-…`), a label from the rubric,
 `npm run eval:recap` recaps every turn in `recap-cases.json` with each model, with the app's own prompt, schema and cleaning (`src/main/ai/recap.ts`). Each case is one request: the prompt, the steps (files, commands and whether they worked) and Claude's final message. They go through the same `buildTurnFacts` the app uses, so the model sees exactly what it would see in Suri. Results: one JSON per model in `results/recap/`, plus `results/recap.md`. Commit both.
 
 ```powershell
-npm run eval:recap                                    # every planned model that's available
+npm run eval:recap                                    # every planned local model that's available
 npm run eval:recap -- --models qwen2.5:7b-instruct    # just one
 npm run eval:recap -- --limit 3                       # a quick check; nothing is saved
 npm run eval:recap -- --report                        # rebuild the report, no model
 ```
 
-Local models, Gemini, retries and pacing work as in the risk eval. If `GEMINI_API_KEY` is set in the terminal, `gemini-3.8-flash` runs too.
+Local models, Gemini, retries and pacing work as in the risk eval.
 
 ### What it measures
 
@@ -82,3 +87,29 @@ The model writes the title, summary, outcome and follow-ups; the files and comma
 ### Adding a case
 
 Give it an id that starts with its label (`done-…`, `partial-…`, `needs-input-…`, `failed-…`), steps with paths relative to the project, the facts it should state, and the claims it must not make. Add a `note` when the label isn't obvious. Projects live in made-up `C:\work\<project>` folders. `tests/recap-eval-scoring.test.ts` checks the file's shape.
+
+## Digest eval
+
+`npm run eval:digest` gives each model a day of work from `digest-cases.json` (each turn as its recap), with the app's own prompt and schema, then holds the reply to the day's facts with `digestFromReply`, exactly as the app does. What's scored is the notes Paul would see. Results: `results/digest/` and `results/digest.md`.
+
+The model only rewords the day, so the eval checks it doesn't distort it:
+
+| Column               | Means                                                                            |
+| -------------------- | -------------------------------------------------------------------------------- |
+| Placed right         | Each piece of work found under its project, as done or in progress, as expected. |
+| Claimed done         | Unfinished work shown as done (and not as in progress). The number to watch.     |
+| Missing              | Work found nowhere in the notes.                                                 |
+| Blockers, Next steps | The blockers and next steps each day should list, found in those lists.          |
+| Long headline        | Over 30 words.                                                                   |
+
+**Suri alone** is the plain version Suri writes without a model. It places everything right by construction (a unit test checks that), so it's the baseline: a model has to keep that and read better. Days are made up; the cases include work that started partial and finished later the same day, and a summary that tries to steer the notes.
+
+## File question eval
+
+`npm run eval:files` asks 12 questions about two frozen copies of Suri's own docs (`documents/`): 9 the document answers, 3 it doesn't. It uses the app's own reading, chunking, prompt and system message (`src/main/ai/file-qa.ts`). A local model sees only the chunks Suri picks; Gemini sees the whole file. Results: `results/file-qa/` and `results/file-qa.md`.
+
+- **Facts stated**: the facts each answerable question asks for, found in the answer.
+- **Said "it doesn't say"**: for the 3 questions the document can't answer, the answer says so instead of guessing.
+- **Retrieval** (no model needed): for the answerable questions on the long document (about 43,000 characters, so a local model can't see all of it), whether the chunks Suri picks hold every fact the answer needs. It's printed at the top of the report and on every run, `--report` included.
+
+The documents are frozen copies, kept out of Prettier, so the questions keep their answers. `tests/file-qa-eval-scoring.test.ts` checks that every expected fact is really in its document.

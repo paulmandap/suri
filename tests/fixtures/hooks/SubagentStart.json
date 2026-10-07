@@ -1,0 +1,10 @@
+{
+  "session_id": "4fbd06f4-5984-4df0-af24-7ff25719eb9e",
+  "transcript_path": "C:\\Users\\example\\.claude\\projects\\C--work-demo-project\\4fbd06f4-5984-4df0-af24-7ff25719eb9e.jsonl",
+  "cwd": "C:\\work\\demo-project",
+  "scratchpad_dir": "C:\\Users\\example\\AppData\\Local\\Temp\\claude\\C--work-demo-project\\4fbd06f4-5984-4df0-af24-7ff25719eb9e\\scratchpad",
+  "prompt_id": "197134f4-cfa6-4941-a524-fe8f0e10a96a",
+  "agent_id": "ad4fcb91a57252fb5",
+  "agent_type": "Explore",
+  "hook_event_name": "SubagentStart"
+}

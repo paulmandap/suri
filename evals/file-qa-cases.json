@@ -1,0 +1,87 @@
+{
+  "about": "Questions about two frozen documents (evals/documents/), for the file-question eval (Phase 7). The decisions file is about 43,000 characters, so a local model only sees the chunks Suri picks. mentions: facts the answer should state, each a list of ways to say it. answerable: false means the document doesn't say, and the answer should say so.",
+  "documents": {
+    "decisions": "suri-decisions.md",
+    "readme": "suri-readme.md"
+  },
+  "cases": [
+    {
+      "id": "port",
+      "doc": "decisions",
+      "question": "Which port does Suri's hook server use by default?",
+      "mentions": [["47821"]]
+    },
+    {
+      "id": "why-node-sqlite",
+      "doc": "decisions",
+      "question": "Why did Suri use node:sqlite instead of better-sqlite3?",
+      "mentions": [["native"], ["compile", "build", "abi"]]
+    },
+    {
+      "id": "approval-wait",
+      "doc": "decisions",
+      "question": "How long does Suri hold a permission request before it lets Claude Code ask?",
+      "mentions": [["110"]]
+    },
+    {
+      "id": "gemini-key",
+      "doc": "decisions",
+      "question": "Where is the Gemini API key stored, and how is it protected?",
+      "mentions": [
+        ["safestorage", "dpapi"],
+        ["secrets.json", "encrypt"]
+      ]
+    },
+    {
+      "id": "cloud-secrets",
+      "doc": "decisions",
+      "question": "What happens to secrets before text is sent to a cloud model?",
+      "mentions": [["redact", "taken out", "removed"]]
+    },
+    {
+      "id": "risk-model",
+      "doc": "decisions",
+      "question": "Which local model does the risk check use now, and what made Suri switch to it?",
+      "mentions": [["qwen3.5:9b"], ["load", "12.7", "ollama 0.40", "warm"]]
+    },
+    {
+      "id": "safety-net",
+      "doc": "decisions",
+      "question": "What does the safety net do for high-risk commands?",
+      "mentions": [
+        ["ask", "prompt"],
+        ["pretooluse", "high-risk", "high risk"]
+      ]
+    },
+    {
+      "id": "price",
+      "doc": "decisions",
+      "question": "How much does a Suri license cost per month?",
+      "answerable": false
+    },
+    {
+      "id": "linux-installer",
+      "doc": "decisions",
+      "question": "Which package format does the Linux installer use: deb or rpm?",
+      "answerable": false
+    },
+    {
+      "id": "readme-what",
+      "doc": "readme",
+      "question": "Where on the screen does Suri live?",
+      "mentions": [["top"]]
+    },
+    {
+      "id": "readme-node",
+      "doc": "readme",
+      "question": "Which Node version do I need to run the tests?",
+      "mentions": [["22.13"]]
+    },
+    {
+      "id": "readme-users",
+      "doc": "readme",
+      "question": "How many people use Suri today?",
+      "answerable": false
+    }
+  ]
+}
