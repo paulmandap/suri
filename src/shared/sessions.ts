@@ -6,6 +6,7 @@ import {
   type ActivityStatus,
   type DiffStats,
   type Session,
+  type SessionRecap,
   type SessionStatus,
   type SessionsState
 } from './types'
@@ -81,6 +82,30 @@ export function markPermissionAnswered(
   }
 }
 
+export type RecapMark = { writing: true } | { recap: SessionRecap } | { failed: true }
+
+/**
+ * The recap of the turn that finished at `finishedAt`: being written, written,
+ * or given up. It only lands on that turn: once the session moved on (a new
+ * prompt, another Stop), a late recap belongs to the history alone.
+ */
+export function markRecap(
+  state: SessionsState,
+  sessionId: string,
+  finishedAt: number,
+  mark: RecapMark
+): SessionsState {
+  const s = state.sessions[sessionId]
+  if (!s || s.finishedAt !== finishedAt) return state
+  const next: Session =
+    'writing' in mark
+      ? { ...s, recapping: true }
+      : 'recap' in mark
+        ? { ...s, recapping: undefined, recap: mark.recap }
+        : { ...s, recapping: undefined }
+  return { sessions: { ...state.sessions, [sessionId]: next } }
+}
+
 /** Drops sessions that went quiet. Ones with a tool still running get four times as long. */
 export function pruneSessions(
   state: SessionsState,
@@ -128,7 +153,9 @@ function applyEvent(s: Session, event: HookEvent, now: number): Session {
         lastMessage: undefined,
         finishedAt: undefined,
         failedAt: undefined,
-        errorMessage: undefined
+        errorMessage: undefined,
+        recapping: undefined,
+        recap: undefined
       }
 
     case 'PreToolUse': {
@@ -189,7 +216,10 @@ function applyEvent(s: Session, event: HookEvent, now: number): Session {
         finishedAt: now,
         lastMessage: event.last_assistant_message
           ? shorten(event.last_assistant_message, 300)
-          : undefined
+          : undefined,
+        // A new turn's end: the last recap was about an earlier one.
+        recapping: undefined,
+        recap: undefined
       }
 
     case 'StopFailure':
@@ -197,7 +227,9 @@ function applyEvent(s: Session, event: HookEvent, now: number): Session {
         ...settle(s, now),
         status: 'error',
         failedAt: now,
-        errorMessage: describeError(event.error)
+        errorMessage: describeError(event.error),
+        recapping: undefined,
+        recap: undefined
       }
 
     case 'SubagentStart':

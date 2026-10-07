@@ -9,13 +9,18 @@
 //   npm run replay -- explain      a risky command no rule sees: only the AI can flag it
 //   npm run replay -- error        a turn that ends in StopFailure
 //   npm run replay -- multi        two sessions at once
+//   npm run replay -- workday      four synthetic requests in two projects (History, digest)
 //   npm run replay -- end          end every replay session
 //   options: --delay <ms> (default 900)
 //            --hold <ms>  give up on a held PermissionRequest after this long
 //                         (default 20000), like Claude Code closing the request
+//            --record     also save the replay in Suri's history, and write recaps.
+//                         Without it, replays are marked and stay out of History.
+//
+// With SURI_DATA_DIR set, it talks to the Suri started with the same folder.
 
 import { readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -28,10 +33,14 @@ const option = (name, fallback) => {
 }
 const DELAY = option('delay', 900)
 const HOLD = option('hold', 20_000)
+const RECORD = args.includes('--record')
+// Each run gets its own prompt ids, so a replay recorded twice makes new turns.
+const RUN = Date.now().toString(36)
 
-const settings = JSON.parse(
-  readFileSync(join(process.env.APPDATA ?? '', 'Suri', 'settings.json'), 'utf8').replace(BOM, '')
-)
+const dataDir = process.env.SURI_DATA_DIR
+  ? resolve(process.env.SURI_DATA_DIR)
+  : join(process.env.APPDATA ?? '', 'Suri')
+const settings = JSON.parse(readFileSync(join(dataDir, 'settings.json'), 'utf8').replace(BOM, ''))
 
 // Forward slashes: Suri reads both separators, and they survive every shell.
 const A = { session_id: 'replay-a', cwd: 'C:/work/suri-demo' }
@@ -56,6 +65,86 @@ const sneaky = {
     description: 'synthetic'
   }
 }
+
+/** A synthetic request: a prompt, tool calls (Pre + Post), then Stop. */
+function request(ids, n, prompt, tools, lastMessage) {
+  const prompt_id = `replay-${RUN}-${n}`
+  const steps = [[{ hook_event_name: 'UserPromptSubmit', prompt, prompt_id, synthetic: true }, ids]]
+  tools.forEach(([tool_name, tool_input, outcome], i) => {
+    const tool_use_id = `toolu_replay_${RUN}_${n}_${i}`
+    const base = { tool_name, tool_input, tool_use_id, prompt_id, synthetic: true }
+    steps.push([{ ...base, hook_event_name: 'PreToolUse' }, ids])
+    if (outcome?.error) {
+      steps.push([{ ...base, hook_event_name: 'PostToolUseFailure', error: outcome.error }, ids])
+    } else {
+      steps.push([{ ...base, hook_event_name: 'PostToolUse', tool_response: outcome ?? {} }, ids])
+    }
+  })
+  steps.push([
+    {
+      hook_event_name: 'Stop',
+      prompt_id,
+      stop_hook_active: false,
+      last_assistant_message: lastMessage,
+      synthetic: true
+    },
+    ids
+  ])
+  return steps
+}
+
+/** An Edit's tool_response: Claude Code's structuredPatch, with this many lines in and out. */
+const patch = (added, removed) => ({
+  structuredPatch: [
+    {
+      lines: [...Array(added).fill('+ line'), ...Array(removed).fill('- line')]
+    }
+  ]
+})
+
+const workday = [
+  ...request(
+    A,
+    1,
+    'Add a dark mode toggle to the settings page',
+    [
+      ['Read', { file_path: 'C:/work/suri-demo/src/settings.tsx' }],
+      ['Edit', { file_path: 'C:/work/suri-demo/src/settings.tsx' }, patch(24, 3)],
+      ['Edit', { file_path: 'C:/work/suri-demo/src/theme.ts' }, patch(12, 0)],
+      ['Bash', { command: 'npm test' }, { stdout: '48 passed' }]
+    ],
+    'Added a dark mode toggle to Settings; the choice is saved in localStorage. All 48 tests pass.'
+  ),
+  ...request(
+    A,
+    2,
+    'The login test is flaky, can you fix it?',
+    [
+      ['Read', { file_path: 'C:/work/suri-demo/tests/login.test.ts' }],
+      ['Bash', { command: 'npm test -- login' }, { error: 'Exit code 1: 1 test failed' }],
+      ['Edit', { file_path: 'C:/work/suri-demo/tests/login.test.ts' }, patch(5, 2)],
+      ['Bash', { command: 'npm test -- login' }, { error: 'Exit code 1: 1 test failed' }]
+    ],
+    'I made the wait explicit, but the login test still fails about one run in five. It looks like a race in the mock server.'
+  ),
+  ...request(
+    B,
+    3,
+    'Update the README with the new deploy steps',
+    [
+      ['Read', { file_path: 'C:/work/portfolio/README.md' }],
+      ['Edit', { file_path: 'C:/work/portfolio/README.md' }, patch(18, 6)]
+    ],
+    "Updated the README's deploy section with the new Vercel steps."
+  ),
+  ...request(
+    B,
+    4,
+    'Deploy the site',
+    [['Bash', { command: 'npm run deploy' }, { error: 'npm error Missing script: "deploy"' }]],
+    "There's no deploy script in package.json, so nothing was deployed. Should I add one with the Vercel CLI, or do you deploy from the dashboard?"
+  )
+]
 
 const SCENARIOS = {
   session: turn.map((name) => [name, A]),
@@ -93,6 +182,7 @@ const SCENARIOS = {
     ['PostToolUse.Edit', A],
     ['Stop', B]
   ],
+  workday,
   end: [
     [{ hook_event_name: 'SessionEnd', reason: 'other', synthetic: true }, A],
     [{ hook_event_name: 'SessionEnd', reason: 'other', synthetic: true }, B]
@@ -106,7 +196,17 @@ if (!steps) {
 }
 
 for (const [source, ids] of steps) {
-  const payload = { ...(typeof source === 'string' ? readFixture(source) : source), ...ids }
+  const fromFixture = typeof source === 'string' ? readFixture(source) : source
+  const payload = {
+    ...fromFixture,
+    ...ids,
+    // A fixture's own prompt id would merge every recorded replay into one turn.
+    prompt_id: String(fromFixture.prompt_id ?? '').startsWith('replay-')
+      ? fromFixture.prompt_id
+      : `replay-${RUN}-${ids.session_id}`,
+    // History leaves marked payloads out, so demos don't land in Paul's notes.
+    ...(RECORD ? {} : { suri_replay: true })
+  }
   const label =
     typeof source === 'string'
       ? source

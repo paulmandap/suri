@@ -244,3 +244,49 @@ The deciding fact: a risk check is nearly always a cold start. Paul's settings l
 - **Icons come from the front view's head:** a seven-size `tray.ico` (Windows picks the size that fits the display's scaling), the app icon (`build/icon.ico`, `build/icon.png`) and the Settings window's icon.
 
 **Consequences.** New art takes one command, and `tests/mascot.test.ts` checks that every imported sprite exists and that `head.json` describes a sane face. Re-running needs about 500 MB for rembg and its model. Not used yet: the three-quarter, side and back views (for a turning animation), and the wave and pointing poses.
+
+## ADR-020 — History in SQLite through node:sqlite
+**Date:** 2026-10-07 · **Status:** Accepted. Supersedes plan decision 8's library (`better-sqlite3`).
+
+**Context.** Phase 6 needs history: each request, its steps, the approvals and the recaps, for the History window and the digest. The plan named `better-sqlite3`. That's a native module: it must be compiled for Electron 44's Node (24.21, ABI 149) to run in the app, and for Node 22 (ABI 127) to run in the unit tests. `electron-builder install-app-deps` builds it for one and breaks the other. Node now ships SQLite itself: `node:sqlite` works in Electron 44 (SQLite 3.53, checked in the app's main process) and in Node 22.13+ (SQLite 3.51).
+
+**Decision.**
+- **`node:sqlite`, no new dependency.** The same code runs in the app and in Vitest, with nothing to compile. It's marked experimental, so the tests hide Node 22's warning (`--disable-warning=ExperimentalWarning`), and all of it sits behind `src/main/db.ts` and `src/main/history.ts`, so swapping in `better-sqlite3` later would touch two files.
+- **One file**, `%APPDATA%\Suri\history.db`, in WAL mode with `synchronous = NORMAL` (a write doesn't wait for the disk on every event). The schema version lives in `PRAGMA user_version`; each migration is a new entry in `MIGRATIONS`, applied in a transaction, and old ones never change. A file from a newer Suri is left alone.
+- **What's kept.** `turns`: one row per request, from UserPromptSubmit to Stop, found by Claude Code's `prompt_id` (it's on every event of a turn, seen in the Phase 0 captures). `steps`: one row per tool call (PreToolUse adds it, PostToolUse settles it), so not every raw event. `decisions`: how each request Suri held ended. `digests`: one per day. When a turn ends, its counted facts (files changed, commands, failures) are saved on the turn.
+- **Turns.** A new prompt ends any turn still open in that session as `interrupted` (Esc, then a new request). A turn Suri sees mid-way (it started late) opens without closing anything, because subagent payloads were never captured and might carry their own `prompt_id`. A turn with no Stop for 6 hours is closed as interrupted.
+- **Kept for:** steps 30 days (the bulky part; the turn keeps its facts), everything else a year.
+- **Safe to record on every event.** Recording never throws; a failure is logged and the hook still gets its answer. Prompts, commands and messages are redacted (Suri's token, the Gemini key and pattern-matched secrets) before they're stored, then cut to a sane length. A file that isn't a database is moved aside and a new one started, like settings.json; any other failure leaves Suri running without history, and Settings says why.
+- **Replays stay out.** `npm run replay` marks its payloads (`suri_replay`), and the history skips them, so demos don't end up in Paul's notes. `--record` leaves the mark off. `SURI_DATA_DIR` points a test run at a scratch folder (settings, history and the single-instance lock), so an end-to-end run never touches the real history.
+
+**Consequences.** No native module, so the build and the tests stay simple. History lives on this PC only, in a plain SQLite file, redacted like everything Suri sends to the cloud. The `node:sqlite` API could still change between Node versions; the wrapper keeps that contained. Uninstalling the app doesn't delete the history yet (Phase 8).
+
+## ADR-021 — The session recap: facts from the events, words from the model
+**Date:** 2026-10-07 · **Status:** Accepted. The default model stays `qwen3.5:9b` until the recap eval has run on local models.
+
+**Context.** The plan asks for a recap on Stop: `{ title, summary, filesChanged[], commands[], outcome, followUps[] }` on the finished card and in History. Two of those six fields are facts Suri already has exactly, from the hook events.
+
+**Decision.**
+- **Code counts, the model words.** `buildTurnFacts` (`src/shared/history.ts`) lists the changed files with their lines, the commands with ok, failed or stopped, and counts reads, searches and failures. The model (`src/main/ai/recap.ts`) only writes `{ title, summary, outcome, followUps }`. A recap can't invent a file or a command, and small models have less to get right. Same idea as the risk explainer (ADR-016): the rules give the facts, the model explains.
+- **Outcomes:** `done`, `partial` (some of it, or something still fails), `needs-input` (it can't go on without Paul), `failed`. An offer at the end ("Want me to also…?") still counts as done. If the steps and the final message disagree, the model is told to trust the steps.
+- **The prompt** holds the project name (no path), the request, the facts and Claude's final message, between markers, as data. A long final message keeps its start and its end, where a question would be. It stays well inside Ollama's default context, so no model reload.
+- **Risk checks come first.** Recaps run one at a time. While an AI risk check runs, a recap waits, and one already running stops and goes back to the front of the line (at most 3 times, then it runs anyway). Paul is waiting on a risk check; nobody waits on a recap. Time limit 120 s, because a local model may have to load.
+- **On the island.** The finished card first shows Claude's last message with "writing a recap…", then the recap's title and summary, and its outcome in the header ("partly done", "needs your answer", "couldn't finish") with a matching pose. A recap for a turn the session has moved past only goes to History. If no model answers, the card keeps the last message and History says why, with a "Write a recap" link to try again.
+- **Settings → General → Session recaps** turns it off (on by default). Recaps still waiting when Suri quits are tried again at the next start (the last 24 hours).
+- **The eval** (`npm run eval:recap`, 24 labelled turns): outcome accuracy, facts stated (each case lists facts the recap should mention), made-up claims (things the title or summary says that the turn shows are false, like "tests pass" after a failed run), length, and follow-ups when work was left. Live models only, never in `npm test`.
+
+**Consequences.** A turn costs one local model call, a few seconds when the model is warm. `qwen3.5:9b` (recaps) and `qwen2.5:7b-instruct` (risk checks) don't fit in 8 GB together, so Ollama swaps them; if the eval shows the 7b writes good recaps, one model for both would avoid that. Not measured yet: Ollama wasn't running when Phase 6 was built.
+
+## ADR-022 — The daily digest and the History window
+**Date:** 2026-10-07 · **Status:** Accepted
+
+**Context.** The plan asks for a tray item "Today's digest" that turns today's history into standup notes, with Copy and Save as .md, and for a history view. The island is small and never takes focus, which suits neither.
+
+**Decision.**
+- **A third window, History** (tray → History…, or `suri --history`): the days on the left; for the chosen day, its standup notes and every request, grouped by project, each with its recap, files, commands, approvals and Claude's last message. Built like Settings (ADR-014): sandboxed, its own preload (`window.suriHistory`, eight calls), a strict CSP, and main checks the sender and validates every payload with Zod. The page never names a path: Copy goes through main's clipboard, and Save as .md opens a save dialog in main. Tray → Today's digest opens it on today and writes the notes if there are none yet.
+- **Facts first, the model rewords.** `buildDigestFacts` (`src/shared/digest.ts`) turns the day's turns into items per project, each tagged with how it ended. The digest model (Gemini by default, ADR-004, with the local fallback) writes `{ headline, projects[{ name, done[], inProgress[] }], blockers[], next[] }`. Its projects are held to the history's: one it made up is dropped, and one it left out keeps Suri's own lists. The model never sees paths or commands, only titles, summaries, follow-ups and counts.
+- **It always works.** With no model (no Gemini key, Ollama off), Suri writes a plain version from the recaps itself and says why: done and in progress come from the outcomes, blockers from failed or waiting turns, next steps from the follow-ups.
+- **A budget.** The prompt stays under 8,000 characters (about 2,000 tokens, inside Ollama's default context): summaries go first, then the oldest items, with a note saying how many were left out.
+- **Saved per day,** with the number of turns it covered, so History can say "3 requests came in after these were written" and offer Rewrite.
+
+**Consequences.** One more window and preload to keep locked down, checked by the same build step. On Gemini's free tier, Google may use the day's titles and summaries (redacted), as Settings already says. A digest eval would need judged prose; the recap eval covers the parts it's built from.

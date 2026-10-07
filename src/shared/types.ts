@@ -2,6 +2,7 @@
 // Plain data only (no Node or DOM types), so both sides can import it.
 
 import type { AiSettings, Route } from './ai-config'
+import type { RecapOutcome } from './history'
 
 /** What kind of work an activity is; drives the verb and the icon. */
 export type ActivityKind =
@@ -73,6 +74,17 @@ export interface Session {
   errorMessage?: string
   /** Subagents currently running. */
   subagents: number
+  /** Suri is writing the AI recap of the turn that just finished. */
+  recapping?: boolean
+  /** That recap, once it's written (ADR-021). */
+  recap?: SessionRecap
+}
+
+/** The finished card's part of a recap. The rest lives in the history. */
+export interface SessionRecap {
+  title: string
+  summary: string
+  outcome: RecapOutcome
 }
 
 export interface SessionsState {
@@ -170,6 +182,8 @@ export interface SuriSettings {
   soundNeedsYou: boolean
   /** A sound when a session finishes its turn or stops with an error. */
   soundFinished: boolean
+  /** Write an AI recap when a turn finishes (ADR-021). */
+  recaps: boolean
   /** Which model answers which AI feature (ADR-015). */
   ai: AiSettings
 }

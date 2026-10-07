@@ -117,7 +117,7 @@ export function cleanRiskReply(reply: RiskReply): RiskReply | null {
 type Answered = Pick<RoutedResult<unknown>, 'route' | 'fellBackFrom'>
 
 /** Short words for the card: why the local model answered instead of Gemini. */
-const FALLBACK_REASON: Record<AIErrorKind, string> = {
+export const FALLBACK_REASON: Record<AIErrorKind, string> = {
   offline: 'offline',
   'rate-limit': 'rate limit',
   auth: 'key rejected',

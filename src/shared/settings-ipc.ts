@@ -19,7 +19,7 @@ export const SETTINGS_IPC = {
   previewHooks: 'suri:settings-preview-hooks',
   /** renderer → main (invoke): write the previewed change. Only a click can send it. */
   applyHooks: 'suri:settings-apply-hooks',
-  /** renderer → main (invoke): show settings.json or the newest backup in Explorer. */
+  /** renderer → main (invoke): show settings.json, the newest backup or the history in Explorer. */
   reveal: 'suri:settings-reveal',
   /** renderer → main (invoke): change the AI settings (Ollama address, models per feature). */
   updateAi: 'suri:settings-update-ai',
@@ -40,6 +40,9 @@ export interface GeneralView {
   canOpenAtLogin: boolean
   soundNeedsYou: boolean
   soundFinished: boolean
+  recaps: boolean
+  /** Suri's history database, or why it couldn't be opened. */
+  history: { file: string; ok: boolean; message?: string }
 }
 
 export interface HooksView {
@@ -98,7 +101,7 @@ export type ApplyHooksResult =
   | { ok: true; backup: string | null }
   | { ok: false; reason: 'changed' | 'stale' | 'no-click' | 'failed'; message: string }
 
-export type RevealTarget = 'settings-file' | 'last-backup'
+export type RevealTarget = 'settings-file' | 'last-backup' | 'history-file'
 
 /** The only API the Settings window gets (`window.suriSettings`). */
 export interface SuriSettingsApi {

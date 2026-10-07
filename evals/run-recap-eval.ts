@@ -1,46 +1,42 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { DEFAULT_AI, isValidModel, type ProviderId } from '@shared/ai-config'
+import { buildTurnFacts } from '@shared/history'
 import { redactSecrets } from '@shared/redact'
-import type { RiskLevel } from '@shared/types'
 import { createGeminiProvider } from '../src/main/ai/gemini'
 import { createOllamaProvider } from '../src/main/ai/ollama'
 import { AIError, jsonSchemaOf, type AIProvider } from '../src/main/ai/provider'
 import {
-  RISK_SYSTEM,
-  RISK_TIMEOUT_MS,
-  cleanRiskReply,
-  riskInputFrom,
-  riskReplySchema,
-  riskRequest,
-  type RiskInput,
-  type RiskReply
-} from '../src/main/ai/risk'
+  RECAP_SYSTEM,
+  RECAP_TIMEOUT_MS,
+  cleanRecapReply,
+  recapReplySchema,
+  recapRequest,
+  type RecapReply
+} from '../src/main/ai/recap'
+import type { RecapSource } from '../src/main/history'
 import { hash, messageOf, pacer, retryDelay, seconds, sleep } from './common'
 import {
-  buildReport,
-  caseFileSchema,
-  combinedLevel,
-  modelRunSchema,
-  ruleLevels,
-  score,
-  type CaseResult,
-  type EvalCase,
-  type ModelRun
-} from './scoring'
+  buildRecapReport,
+  caseSource,
+  recapCaseFileSchema,
+  recapRunSchema,
+  scoreRun,
+  type RecapCase,
+  type RecapResult,
+  type RecapRun
+} from './recap-scoring'
 
-// The risk eval (plan, Phase 4). Each labelled case goes to each model with
-// the app's own prompt, schema, cleaning and redaction, but straight to the
-// provider with no fallback, so every score belongs to one model. It needs
-// live models, so it lives here and never runs in `npm test`.
+// The recap eval (plan, Phase 6). Each labelled turn goes to each model with
+// the app's own prompt, schema and cleaning, straight to the provider with no
+// fallback, so every score belongs to one model. Live models only: never part
+// of `npm test`.
 //
-//   npm run eval:risk                                every planned model that's available
-//   npm run eval:risk -- --models qwen3.5:9b,gemini-3.8-flash
-//   npm run eval:risk -- --limit 5                   a quick check; nothing is saved
-//   npm run eval:risk -- --gemini-rpm 5              slower, for a stricter free tier
-//   npm run eval:risk -- --report                    rebuild the report from saved runs, no model
+//   npm run eval:recap                                 every planned model that's available
+//   npm run eval:recap -- --models qwen2.5:7b-instruct,qwen3.5:9b
+//   npm run eval:recap -- --limit 3                    a quick check; nothing is saved
+//   npm run eval:recap -- --report                     rebuild the report from saved runs
 
-/** The plan's line-up (Phase 4), plus the small qwen2.5 already on this PC. */
 const PLANNED = [
   'qwen2.5:7b-instruct',
   'qwen2.5:3b-instruct',
@@ -51,39 +47,37 @@ const PLANNED = [
 ]
 
 const ROOT = process.cwd()
-const CASES_FILE = join(ROOT, 'evals', 'risk-cases.json')
+const CASES_FILE = join(ROOT, 'evals', 'recap-cases.json')
 const RESULTS_DIR = join(ROOT, 'evals', 'results')
-const RUNS_DIR = join(RESULTS_DIR, 'risk')
-const REPORT_FILE = join(RESULTS_DIR, 'risk.md')
+const RUNS_DIR = join(RESULTS_DIR, 'recap')
+const REPORT_FILE = join(RESULTS_DIR, 'recap.md')
 
 interface Options {
   models: string[]
   limit: number | null
   geminiRpm: number
-  /** Only rebuild the report, e.g. after a rule change: saved answers meet today's rules. */
   reportOnly: boolean
 }
 
 export async function main(args: string[]): Promise<void> {
   const opts = parseArgs(args)
   const raw = readFileSync(CASES_FILE, 'utf8')
-  const file = caseFileSchema.parse(JSON.parse(raw))
+  const file = recapCaseFileSchema.parse(JSON.parse(raw))
   const cases = opts.limit ? file.cases.slice(0, opts.limit) : file.cases
   const casesHash = hash(raw)
-  const promptHash = hash(RISK_SYSTEM + JSON.stringify(jsonSchemaOf(riskReplySchema)))
+  const promptHash = hash(RECAP_SYSTEM + JSON.stringify(jsonSchemaOf(recapReplySchema)))
   const writeReport = (): void => {
     const runs = loadRuns()
     writeFileSync(
       REPORT_FILE,
-      buildReport({ file, runs, casesHash, promptHash, planned: PLANNED }),
+      buildRecapReport({ cases: file.cases, runs, casesHash, promptHash, planned: PLANNED }),
       'utf8'
     )
-    console.log(`\nReport: evals/results/risk.md (${runs.length} models).`)
+    console.log(`\nReport: evals/results/recap.md (${runs.length} models).`)
   }
   if (opts.reportOnly) return writeReport()
 
   const ollama = createOllamaProvider({ url: () => DEFAULT_AI.ollamaUrl })
-  // Suri's saved key is encrypted for Suri alone (DPAPI), so the eval needs its own.
   const key = process.env['GEMINI_API_KEY']?.trim() || null
   const gemini = createGeminiProvider({ apiKey: () => key })
 
@@ -94,9 +88,8 @@ export async function main(args: string[]): Promise<void> {
     console.log(`Ollama: ${messageOf(err)} Local models are skipped.`)
   }
 
-  const rules = ruleLevels({ cwd: file.cwd, cases })
   const quick = opts.limit ? ' (a quick check: nothing is saved)' : ''
-  console.log(`Risk eval: ${cases.length} cases${quick}.`)
+  console.log(`Recap eval: ${cases.length} turns${quick}.`)
   for (const model of opts.models) {
     const providerId: ProviderId = model.startsWith('gemini') ? 'gemini' : 'ollama'
     if (!isValidModel(providerId, model)) {
@@ -116,12 +109,16 @@ export async function main(args: string[]): Promise<void> {
       providerId,
       model,
       cases,
-      cwd: file.cwd,
       casesHash,
       promptHash,
       gapMs: providerId === 'gemini' ? 60_000 / opts.geminiRpm : 0
     })
-    printScore(run, rules)
+    const s = scoreRun(cases, run)
+    const pct = (n: number, of: number): string => `${Math.round((100 * n) / Math.max(1, of))}%`
+    console.log(
+      `  => outcome ${pct(s.outcomeRight, s.total)}, facts ${pct(s.mentioned, s.mentions)}, ` +
+        `made-up claims ${s.madeUp}, too long ${s.tooLong}, no follow-up ${s.missingFollowUp}`
+    )
     if (!opts.limit) save(run)
   }
 
@@ -132,37 +129,41 @@ async function runModel(opts: {
   provider: AIProvider
   providerId: ProviderId
   model: string
-  cases: readonly EvalCase[]
-  cwd: string
+  cases: readonly RecapCase[]
   casesHash: string
   promptHash: string
   gapMs: number
-}): Promise<ModelRun> {
+}): Promise<RecapRun> {
   const { provider, providerId, model, cases } = opts
   console.log(`\n${model}`)
-  const ask = (input: RiskInput): Promise<RiskReply | null> =>
-    askModel(provider, providerId, model, input)
+  const ask = (source: RecapSource): Promise<RecapReply | null> =>
+    askModel(provider, providerId, model, source)
   const wait = pacer(opts.gapMs)
 
   let coldMs: number | undefined
   if (providerId === 'ollama') {
     // The first call loads the model into memory, so it's timed on its own.
     const started = performance.now()
-    await ask(riskInputFrom('Bash', { command: 'git status' }, opts.cwd, null)).catch(() => null)
+    await ask({
+      project: 'warm-up',
+      prompt: 'Say hello',
+      facts: buildTurnFacts([], 'C:\\work\\warm-up', 1000),
+      denied: [],
+      lastMessage: 'Hello!'
+    }).catch(() => null)
     coldMs = Math.round(performance.now() - started)
     console.log(`  first call (loads the model): ${seconds(coldMs)}`)
   }
 
-  const results: CaseResult[] = []
+  const results: RecapResult[] = []
   for (const [i, c] of cases.entries()) {
-    // The rule is never in the prompt, so the model is asked without it.
-    const input = riskInputFrom(c.tool, c.input, c.cwd ?? opts.cwd, null)
-    const rated = await rate(ask, input, wait)
-    results.push({ id: c.id, label: c.label, ...rated })
-    const said = rated.said ?? `no answer (${rated.error ?? 'unknown'})`
-    const mark = rated.said === c.label ? 'ok ' : 'MISS'
-    const time = rated.ms === null ? '' : ` · ${seconds(rated.ms)}`
+    const result = await recap(ask, caseSource(c), wait)
+    results.push({ id: c.id, label: c.label, ...result })
+    const said = result.said ?? `no answer (${result.error ?? 'unknown'})`
+    const mark = result.said === c.label ? 'ok ' : 'MISS'
+    const time = result.ms === null ? '' : ` · ${seconds(result.ms)}`
     console.log(`  ${String(i + 1).padStart(2)}/${cases.length} ${mark} ${c.id}: ${said}${time}`)
+    if (result.title) console.log(`        "${result.title}"`)
   }
   return {
     model,
@@ -175,20 +176,26 @@ async function runModel(opts: {
   }
 }
 
-/** One case. A failure that says nothing about the model's judgement is tried again. */
-async function rate(
-  ask: (input: RiskInput) => Promise<RiskReply | null>,
-  input: RiskInput,
+/** One turn. A failure that says nothing about the model is tried again. */
+async function recap(
+  ask: (source: RecapSource) => Promise<RecapReply | null>,
+  source: RecapSource,
   wait: () => Promise<void>
-): Promise<Omit<CaseResult, 'id' | 'label'>> {
+): Promise<Omit<RecapResult, 'id' | 'label'>> {
   for (let attempt = 1; ; attempt++) {
     await wait()
     const started = performance.now()
     try {
-      const reply = await ask(input)
+      const reply = await ask(source)
       const ms = Math.round(performance.now() - started)
       if (!reply) return { said: null, ms, error: 'empty answer' }
-      return { said: reply.level, ms, summary: reply.summary, reversible: reply.reversible }
+      return {
+        said: reply.outcome,
+        ms,
+        title: reply.title,
+        summary: reply.summary,
+        followUps: reply.followUps
+      }
     } catch (err) {
       const delay = retryDelay(err, attempt)
       if (delay !== null && err instanceof AIError) {
@@ -207,9 +214,9 @@ async function askModel(
   provider: AIProvider,
   providerId: ProviderId,
   model: string,
-  input: RiskInput
-): Promise<RiskReply | null> {
-  const req = riskRequest(input)
+  source: RecapSource
+): Promise<RecapReply | null> {
+  const req = recapRequest(source)
   const text =
     providerId === 'ollama'
       ? req
@@ -218,33 +225,23 @@ async function askModel(
           system: redactSecrets(req.system).text,
           prompt: redactSecrets(req.prompt).text
         }
-  return cleanRiskReply(await provider.generateJSON({ ...text, model, timeoutMs: RISK_TIMEOUT_MS }))
-}
-
-function printScore(run: ModelRun, rules: readonly (RiskLevel | null)[]): void {
-  const alone = score(run.results)
-  const withRules = score(
-    run.results.map((r, i) => ({ label: r.label, said: combinedLevel(rules[i] ?? null, r.said) }))
-  )
-  const pct = (s: typeof alone): string => `${Math.round((100 * s.correct) / s.total)}%`
-  console.log(
-    `  => ${pct(alone)} alone (high caught ${alone.highCaught}/${alone.highs}), ` +
-      `${pct(withRules)} with the rules (high caught ${withRules.highCaught}/${withRules.highs})`
+  return cleanRecapReply(
+    await provider.generateJSON({ ...text, model, timeoutMs: RECAP_TIMEOUT_MS })
   )
 }
 
-function save(run: ModelRun): void {
+function save(run: RecapRun): void {
   mkdirSync(RUNS_DIR, { recursive: true })
   const name = `${run.model.replace(/[^a-z0-9.-]+/gi, '-')}.json`
   writeFileSync(join(RUNS_DIR, name), JSON.stringify(run, null, 2) + '\n', 'utf8')
 }
 
 /** Every saved run: the plan's models in its order, then any others by name. */
-function loadRuns(): ModelRun[] {
+function loadRuns(): RecapRun[] {
   if (!existsSync(RUNS_DIR)) return []
   const runs = readdirSync(RUNS_DIR)
     .filter((name) => name.endsWith('.json'))
-    .map((name) => modelRunSchema.parse(JSON.parse(readFileSync(join(RUNS_DIR, name), 'utf8'))))
+    .map((name) => recapRunSchema.parse(JSON.parse(readFileSync(join(RUNS_DIR, name), 'utf8'))))
   const order = (model: string): number => {
     const i = PLANNED.indexOf(model)
     return i === -1 ? PLANNED.length : i

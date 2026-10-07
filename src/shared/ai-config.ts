@@ -21,9 +21,9 @@ export interface AiSettings {
 
 export const FEATURES: readonly { id: Feature; label: string; built: boolean }[] = [
   { id: 'risk', label: 'Risk explainer', built: true },
-  { id: 'recap', label: 'Session recap', built: false },
+  { id: 'recap', label: 'Session recap', built: true },
   { id: 'fileQa', label: 'Questions about a file', built: false },
-  { id: 'digest', label: 'Daily digest', built: false }
+  { id: 'digest', label: 'Daily digest', built: true }
 ]
 
 export const DEFAULT_OLLAMA_URL = 'http://127.0.0.1:11434'

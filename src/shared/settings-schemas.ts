@@ -10,7 +10,8 @@ export const generalPatchSchema = z.strictObject({
   safetyNet: z.boolean().optional(),
   openAtLogin: z.boolean().optional(),
   soundNeedsYou: z.boolean().optional(),
-  soundFinished: z.boolean().optional()
+  soundFinished: z.boolean().optional(),
+  recaps: z.boolean().optional()
 })
 
 export type GeneralPatch = z.infer<typeof generalPatchSchema>
@@ -19,7 +20,7 @@ export const hookActionSchema = z.enum(['install', 'uninstall'])
 
 export const previewIdSchema = z.string().regex(/^preview-\d{1,9}$/)
 
-export const revealTargetSchema = z.enum(['settings-file', 'last-backup'])
+export const revealTargetSchema = z.enum(['settings-file', 'last-backup', 'history-file'])
 
 export const providerSchema = z.enum(['ollama', 'gemini'])
 

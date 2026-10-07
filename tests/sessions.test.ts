@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   createSessionsState,
   markPermissionAnswered,
+  markRecap,
   pruneSessions,
   reduceSessions,
   sortSessions
@@ -219,5 +220,44 @@ describe('markPermissionAnswered', () => {
     const denied = markPermissionAnswered(state, 'session-1', 'deny', now + 10)
     expect(denied.sessions['session-1']!.status).toBe('thinking')
     expect(markPermissionAnswered(state, 'nobody', 'allow', now)).toBe(state)
+  })
+})
+
+describe('markRecap', () => {
+  const RECAP = {
+    title: 'Add bread',
+    summary: 'Added bread to notes.txt.',
+    outcome: 'done' as const
+  }
+
+  it('puts the recap on the finished card of the turn it describes', () => {
+    const { state } = replay(['UserPromptSubmit', 'PreToolUse.Bash', 'PostToolUse.Bash', 'Stop'])
+    const finishedAt = state.sessions['session-1']!.finishedAt!
+    const writing = markRecap(state, 'session-1', finishedAt, { writing: true })
+    expect(writing.sessions['session-1']).toMatchObject({ recapping: true })
+    const written = markRecap(writing, 'session-1', finishedAt, { recap: RECAP })
+    expect(written.sessions['session-1']).toMatchObject({ recap: RECAP })
+    expect(written.sessions['session-1']!.recapping).toBeUndefined()
+    const failed = markRecap(writing, 'session-1', finishedAt, { failed: true })
+    expect(failed.sessions['session-1']!.recapping).toBeUndefined()
+    expect(failed.sessions['session-1']!.recap).toBeUndefined()
+  })
+
+  it('ignores a late recap once the session moved on', () => {
+    const { state, now } = replay(['UserPromptSubmit', 'Stop'])
+    const finishedAt = state.sessions['session-1']!.finishedAt!
+    const next = reduceSessions(state, hookEvent('UserPromptSubmit', ID), now + 100)
+    expect(markRecap(next, 'session-1', finishedAt, { recap: RECAP })).toBe(next)
+    expect(markRecap(state, 'nobody', finishedAt, { recap: RECAP })).toBe(state)
+  })
+
+  it('clears the recap when a new turn starts or ends', () => {
+    const { state, now } = replay(['UserPromptSubmit', 'Stop'])
+    const finishedAt = state.sessions['session-1']!.finishedAt!
+    const written = markRecap(state, 'session-1', finishedAt, { recap: RECAP })
+    const prompted = reduceSessions(written, hookEvent('UserPromptSubmit', ID), now + 100)
+    expect(prompted.sessions['session-1']!.recap).toBeUndefined()
+    const stopped = reduceSessions(written, hookEvent('Stop', ID), now + 100)
+    expect(stopped.sessions['session-1']!.recap).toBeUndefined()
   })
 })

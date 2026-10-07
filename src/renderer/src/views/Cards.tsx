@@ -1,4 +1,5 @@
 import { motion, useReducedMotion } from 'motion/react'
+import type { RecapOutcome } from '@shared/history'
 import type { Session } from '@shared/types'
 import { statsLabel } from '../lib/format'
 import { MascotBody } from '../mascot/Mascot'
@@ -43,23 +44,45 @@ export function WaitingCard({ session, onDismiss }: CardProps): React.JSX.Elemen
   )
 }
 
+/** How the recap says the turn went; "finished" until it says otherwise. */
+const OUTCOME: Record<RecapOutcome, { label: string; tone: string; pose: Pose }> = {
+  done: { label: 'finished', tone: 'text-emerald-300', pose: 'happy' },
+  partial: { label: 'partly done', tone: 'text-amber-300', pose: 'idle' },
+  'needs-input': { label: 'needs your answer', tone: 'text-sky-300', pose: 'alert' },
+  failed: { label: "couldn't finish", tone: 'text-red-300', pose: 'worried' }
+}
+
 export function FinishedCard({
   session,
   onDismiss,
   onOpen
 }: CardProps & { onOpen: (sessionId: string) => void }): React.JSX.Element {
+  const recap = session.recap
+  const outcome = OUTCOME[recap?.outcome ?? 'done']
   return (
     <div className="flex h-full items-center gap-3.5 px-4">
-      <CardMascot pose="happy" jump />
+      <CardMascot pose={outcome.pose} jump />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5 text-[12px]">
           <span className="font-semibold">{session.project}</span>
-          <span className="text-emerald-300">finished</span>
+          <span className={outcome.tone}>{outcome.label}</span>
         </div>
-        <div className="mt-1 line-clamp-2 text-[12.5px] leading-snug text-white/80">
-          {session.lastMessage ?? 'Claude Code is done.'}
+        {recap ? (
+          <>
+            <div className="mt-1 truncate text-[13px] font-medium text-white/90">{recap.title}</div>
+            <div className="mt-0.5 line-clamp-2 text-[12px] leading-snug text-white/65">
+              {recap.summary}
+            </div>
+          </>
+        ) : (
+          <div className="mt-1 line-clamp-2 text-[12.5px] leading-snug text-white/80">
+            {session.lastMessage ?? 'Claude Code is done.'}
+          </div>
+        )}
+        <div className="mt-1 text-[11px] text-white/40">
+          {statsLabel(session)}
+          {session.recapping ? ' · writing a recap…' : ''}
         </div>
-        <div className="mt-1 text-[11px] text-white/40">{statsLabel(session)}</div>
       </div>
       <div className="flex shrink-0 flex-col gap-1.5">
         <button

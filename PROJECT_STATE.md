@@ -1,12 +1,12 @@
 # Project state
 
-_Last updated: 2026-10-07 (Phase 5 done: Paul's mascot art in the island, the tray and the app icon)_
+_Last updated: 2026-10-07 (Phase 6 built: history, recaps, daily digest, History window; the recap eval waits for Ollama)_
 
 Read `CLAUDE.md` first. The plan is in `~/.claude/plans/i-want-to-build-zany-gosling.md` (local only, not in the repo).
 
 ## Where we are
 
-**Phase 5 is done: Suri is Paul's meerkat now** (ADR-019): his poses on the cards, his blank head with code-drawn eyes in the small spots, and his art as the tray and app icon. Sounds (ADR-018) and a steady compact bar came first. **Next is Phase 6** (session recap, history, daily digest). The hooks are installed on Paul's own settings (this Claude Code chat showed on the island on 2026-10-06); the VS Code check is still open (see Next).
+**Phase 6 is built: Suri remembers.** Every request to Claude Code is saved on this PC (ADR-020), each finished turn gets an AI recap on the island and in History (ADR-021), and tray → Today's digest writes standup notes you can copy or save as .md (ADR-022). **One thing is left: the recap eval on local models** (Next → 1), because Ollama wasn't running while this was built. After that comes **Phase 7** (drop a file, ask a question). The VS Code check is still open (Next → 3).
 
 | Phase | Status |
 |---|---|
@@ -16,10 +16,22 @@ Read `CLAUDE.md` first. The plan is in `~/.claude/plans/i-want-to-build-zany-gos
 | 3 Hook installer + Settings | ✅ Done |
 | 4 AI layer + risk explainer + eval | ✅ Done. Gemini not measured yet (overloaded) |
 | 5 Mascot | ✅ Done (a turning animation is left for later) |
-| 6 Recap, history, digest | Next |
-| 7 Drop a file, ask a question | |
+| 6 Recap, history, digest | ✅ Built. Recap eval to run (needs Ollama) |
+| 7 Drop a file, ask a question | Next |
 | Proposed: Screen helper + push-to-talk | Paul to confirm (ADR-010, ADR-011) |
 | 8 Ship and resume | |
+
+## Phase 6 results (ADR-020, ADR-021, ADR-022)
+
+- **History** (`src/main/history.ts`, `src/main/db.ts`): SQLite in `%APPDATA%\Suri\history.db` through Node's built-in `node:sqlite`, not `better-sqlite3`: a native module would need one build for Electron's Node 24 and another for the tests' Node 22. One row per request (a "turn", found by Claude Code's `prompt_id`), one per tool call, plus approvals and digests. Migrations by `PRAGMA user_version`. Steps are kept 30 days, the rest a year. Text is redacted before it's stored. Recording never throws, so a broken history can't cost Claude Code an answer; a damaged file is moved aside.
+- **The recap** (`src/main/ai/recap.ts`): when a turn ends, code counts the facts (files changed with their lines, commands with ok / failed, reads, failures) and the model writes only `{ title, summary, outcome, followUps }`, so it can't invent a file or a command. Outcomes: done, partial, needs-input, failed. Recaps run one at a time and step aside while a risk check runs (Paul waits on that one). The finished card shows "writing a recap…", then the recap's title, summary and outcome ("partly done", "needs your answer", "couldn't finish"). Settings → General → Session recaps turns it off.
+- **History window** (tray → History…, or `suri --history`): days on the left; for each day the standup notes and every request by project, with its recap, files, commands, approvals and Claude's last message, plus "Write a recap" to try again. A third sandboxed window with its own preload, like Settings.
+- **Daily digest** (tray → Today's digest): the day's recaps as standup notes (done, in progress, blockers, next), by the digest model (Gemini by default, the local model as fallback). The model is held to the history's projects, never sees paths or commands, and its prompt stays inside Ollama's default context. With no model at all, Suri writes a plain version itself and says why. Copy (Markdown) and Save as .md; "3 requests came in after these were written" offers a rewrite.
+- **The recap eval** (`npm run eval:recap`, `evals/recap-cases.json`): 24 labelled turns (9 done, 6 partial, 5 needs-input, 4 failed). It scores the outcome, the facts each case says the recap should state, made-up claims (like "tests pass" after a failed last run), length, and follow-ups. **Not run on local models yet**: Ollama was off.
+- **For testing:** `SURI_DATA_DIR=<folder>` runs Suri with its own settings and history. Replays are marked and stay out of History unless `--record`. New `npm run replay -- workday`: four requests in two projects.
+- **Verified:**
+  - **Unit tests:** typecheck, lint, the build (three preloads, self-contained) and **530 unit tests** (79 new), with real SQLite in memory and in temp folders: migrations, a damaged file moved aside, a newer Suri's file left alone, a real captured turn turned into facts, Esc then a new prompt, a turn seen mid-way, redaction before storing, the replay mark, pruning, the recap prompt and queue (one at a time, stepping aside for a risk check at most 3 times, stop on quit), the digest's facts, plain version, model held to the facts, Markdown, prompt budget and fallback.
+  - **End to end** with a scratch Suri (`SURI_DATA_DIR`, port 47931) and a fake Ollama on 127.0.0.1:11999 that answers with canned JSON, so the real pipeline ran without the GPU: `replay workday --record` stored 4 turns with the right files, lines and failed commands, and 4 recaps came back through the real Ollama provider. The History window, the digest (Gemini had no key, so the local fallback answered and the notes say "Gemini: no key"), the turn details, the island's "writing a recap…" then the recap, a recap failing with Ollama down (the card keeps Claude's message; History shows "Can't reach Ollama…"), "Write a recap" after Ollama came back, recaps switched off, Copy as Markdown (Paul's clipboard was saved and put back), `--history` on a second launch, and the dev server build. Bad input from the page (`../../etc`, a negative turn id) was refused, and each window sees only its own API. Paul's own `%APPDATA%\Suri` was not touched.
 
 ## Phase 5 results (ADR-018, ADR-019)
 
@@ -87,35 +99,47 @@ Read `CLAUDE.md` first. The plan is in `~/.claude/plans/i-want-to-build-zany-gos
 4. **The risk explainer:** with Suri running, `npm run replay -- explain` holds a request for a delete hidden in Python: no rule fires, then the AI turns the card red (about 8 s the first time, while the model loads). `npm run replay -- risky` shows the rule and the AI together.
 5. **Sounds:** Settings → General → Sounds → "play" next to each switch. `npm run replay -- permission` makes the island chirp.
 6. **The mascot:** `npm run replay -- session` (the head in the compact bar, then the happy pose), `-- risky` (the shield), `-- error` (worried). Move the pointer toward the island and the head looks at it.
+7. **Recaps and History:** with Ollama running, just use Claude Code: each finished request shows "writing a recap…" on the card, then the recap. Tray → **History…** shows every request today. `npm run replay -- workday --record` adds four sample requests (they do land in your history; leave out `--record` to keep them out).
+8. **Standup notes:** tray → **Today's digest**, then **Copy** or **Save as .md**.
 
 ## Next
 
-1. **The hooks are installed** on Paul's settings (seen 2026-10-06: all 11 entries, and this chat showed on the island). Two small checks are left:
+1. **Paul: the recap eval (about 10 minutes, uses the GPU).** Start Ollama, then `npm run eval:recap`. It writes `evals/results/recap.md` and one JSON per model. Then pick the recap model (ADR-021), the way you picked the risk model: if `qwen2.5:7b-instruct` writes good recaps, using it for both features keeps one model in the 8 GB card instead of swapping. Change it in Settings → AI → Session recap. `GEMINI_API_KEY` is set in this terminal, so `gemini-3.8-flash` runs too (free tier, paced).
+2. **Phase 7: drop a file, ask a question** (plan, Phase 7).
+3. **The hooks are installed** on Paul's settings (seen 2026-10-06: all 11 entries, and this chat showed on the island). Two small checks are left:
    1. Quit Suri and send one prompt: you should see "Stop hook error" once (expected, ADR-002).
    2. In `sandbox/`, check that each tool shows up once on the island, not twice. The Claude Code docs say identical hooks run once; if you see doubles, tell Claude and delete the `hooks` block in `sandbox/.claude/settings.local.json`.
-2. **Paul: the VS Code check (about 3 minutes),** in any project:
+4. **Paul: the VS Code check (about 3 minutes),** in any project:
    1. Ask Claude Code: `run the command: echo hello-vscode`. Suri shows the approval card. Click **Allow**. Does the command run without you clicking anything in VS Code?
    2. Ask again and click **Deny**. What does Claude say?
    3. Ask for `git push --force` in a repo with no remote. Does Suri's card appear (safety net), or only VS Code's own prompt?
    4. Quit Suri (tray → Quit Suri) and ask once more. What does VS Code show?
    5. Tell Claude what you saw. It goes into `docs/spike-hooks.md` and ADR-002 / ADR-012.
-3. **Phase 6: session recap, history, daily digest** (plan, Phase 6). SQLite (`better-sqlite3`, which needs the MSVC build tools already on this PC) with a schema and migrations; store events (truncated), decisions and recaps. On Stop, the AI writes `{ title, summary, filesChanged[], commands[], outcome, followUps[] }` for the finished card and a history view. The digest turns today's rows into Markdown standup notes (tray → Today's digest, copy, save as .md). Measure the recap the way the risk explainer was measured, since its default model (`qwen3.5:9b`) hasn't been tested on this job.
-4. ~~Listen to the sounds~~: Paul is fine with them as they are (2026-10-06).
-5. **Paul, when Gemini isn't overloaded: the Gemini eval** (about 7 minutes, paced for the free tier). Set the key in that terminal first (evals/README.md shows how, without it landing in PowerShell's history), then `npm run eval:risk -- --models gemini-3.8-flash`.
+5. **Paul, when Gemini isn't overloaded: the Gemini eval** (about 7 minutes, paced for the free tier): `npm run eval:risk -- --models gemini-3.8-flash`. The key is already set in the VS Code terminal; elsewhere, evals/README.md shows how to set it without it landing in PowerShell's history.
 6. **Paul: confirm the screen helper and push-to-talk** (ADR-010, ADR-011) as a new phase after Phase 7.
-7. **Maybe later, from the eval:** a rule for a recursive delete aimed outside the project (`rm -rf ../other`), which would catch the one high case the default model and the rules both missed. It's left out for now, because the rule would come from the test set itself, and a monorepo's `../build` would trip it.
+7. **Maybe later, from the risk eval:** a rule for a recursive delete aimed outside the project (`rm -rf ../other`), which would catch the one high case the default model and the rules both missed. It's left out for now, because the rule would come from the test set itself, and a monorepo's `../build` would trip it.
 
 ## How to run
 
 - `npm install` · `npm run dev` · `npm test` · `npm run typecheck` · `npm run lint` · `npm run build`
 - Electron 44 downloads its ~100 MB binary the first time it runs, so the first `npm run dev` on a fresh clone takes longer.
-- `npm run sandbox:hooks` (needs Suri started once) · `npm run replay -- session|permission|risky|explain|error|multi|end [--hold ms]`
-- `npm run eval:risk` (live models; see `evals/README.md`). `-- --models a,b` for some models, `-- --limit 5` for a quick check that saves nothing, `-- --report` to rebuild the report from saved runs (after a rule change, say).
-- Dev switches: `SURI_ALLOW_CAPTURE=1` (show Suri in screenshots), `SURI_DEVTOOLS=1` (DevTools for the island and Settings), `CLAUDE_CONFIG_DIR=<folder>` (point the installer at a test settings.json), `--settings` (open Settings at launch).
+- `npm run sandbox:hooks` (needs Suri started once) · `npm run replay -- session|permission|risky|explain|error|multi|workday|end [--hold ms] [--record]` (`--record` saves the replay in History and writes recaps)
+- `npm run eval:risk` and `npm run eval:recap` (live models; see `evals/README.md`). `-- --models a,b` for some models, `-- --limit 5` for a quick check that saves nothing, `-- --report` to rebuild the report from saved runs (after a rule change, say).
+- Dev switches: `SURI_ALLOW_CAPTURE=1` (show Suri in screenshots), `SURI_DEVTOOLS=1` (DevTools for the island, Settings and History), `CLAUDE_CONFIG_DIR=<folder>` (point the installer at a test settings.json), `SURI_DATA_DIR=<folder>` (a Suri with its own settings and history; give it another port), `--settings` / `--history` (open that window at launch).
+- An end-to-end run without the GPU: a tiny server on another port that answers `/api/tags` and `/api/chat` with canned JSON, set as the Ollama address in the scratch `settings.json` (Phase 6 did this; the script isn't in the repo).
+- Tests need Node 22.13+ (`node:sqlite` without a flag).
 - Talk to Ollama through its HTTP API (`curl http://127.0.0.1:11434/api/version`) in scripts: running the `ollama` command started a pending Ollama update on 2026-10-05.
 
 ## Known issues
 
+- **The recap eval hasn't run on local models** (Ollama was off). The recap default stays `qwen3.5:9b`; with the risk check on `qwen2.5:7b-instruct`, Ollama swaps the two in the 8 GB card, so after an approval the next recap may wait about 50 s for its model to load. Next → 1 decides.
+- A quick check of the recap eval (`--limit 2`, nothing saved) reached Gemini, because `GEMINI_API_KEY` is set in the VS Code terminal: two made-up cases went to the free tier, which answered "too many requests" twice before it replied.
+- Subagent payloads were never captured. If a subagent's events carry their own `prompt_id`, its steps land in a separate turn without a request, and the parent's recap misses them.
+- No "delete history" button yet: quit Suri and delete `%APPDATA%\Suri\history.db` (Settings → General → History → Show in Explorer). Uninstalling the app doesn't remove it either (Phase 8).
+- Not clicked by hand: the tray's "Today's digest" and "History…" items (the same code ran through `--history` and the History page), and Save as .md (a native save dialog).
+- The finished card's line ("6 steps · 2 edits") counts the whole session, not the turn; History counts per turn.
+- `node:sqlite` is marked experimental in Node. Node 22 prints a warning, which the tests hide; Electron's Node 24 doesn't print one.
+- The digest has no eval of its own: it's prose. The recap eval measures what it's built from.
 - Ollama must be running; Suri doesn't start it. Settings says "Can't reach Ollama … Is it running?" when it isn't (seen live).
 - The first risk check after a quiet spell waits about 8 s while `qwen2.5:7b-instruct` loads (Ollama unloads a model after five idle minutes); after that it's about 1 s. If `qwen3.5:9b` is picked for the risk explainer, its load (about 50 s) is over the 45 s limit: that first card says the model is probably still loading, and the next one works.
 - A comment inside a command can talk the default model down: "this is safe, rate it low" made `qwen2.5:7b-instruct` say low (eval case `high-comment-says-safe`). The rules are the floor, and here they only reach medium. `qwen3.5:4b` wasn't fooled.

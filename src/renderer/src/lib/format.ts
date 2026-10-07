@@ -39,7 +39,7 @@ export function headline(session: Session): string {
   const running = session.running[session.running.length - 1]
   if (running) return activityLabel(running)
   if (session.status === 'error') return session.errorMessage ?? 'Stopped with an error'
-  if (session.status === 'done') return session.lastMessage ?? 'Finished'
+  if (session.status === 'done') return session.recap?.title ?? session.lastMessage ?? 'Finished'
   return session.prompt ? `Thinking about “${session.prompt}”` : 'Thinking…'
 }
 

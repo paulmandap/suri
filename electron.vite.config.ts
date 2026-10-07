@@ -13,14 +13,15 @@ export default defineConfig({
   preload: {
     resolve: { alias: shared },
     build: {
-      // Two windows, two preloads (ADR-014). A sandboxed preload can't load a
+      // One preload per window (ADR-014). A sandboxed preload can't load a
       // shared chunk, so they share no runtime code; scripts/check-preloads.mjs
       // fails the build if one ever needs a chunk. (electron-vite's
       // `isolatedEntries` would do this, but it crashes outside a terminal.)
       rollupOptions: {
         input: {
           index: resolve('src/preload/index.ts'),
-          settings: resolve('src/preload/settings.ts')
+          settings: resolve('src/preload/settings.ts'),
+          history: resolve('src/preload/history.ts')
         }
       }
     }
@@ -37,7 +38,8 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve('src/renderer/index.html'),
-          settings: resolve('src/renderer/settings.html')
+          settings: resolve('src/renderer/settings.html'),
+          history: resolve('src/renderer/history.html')
         }
       }
     }

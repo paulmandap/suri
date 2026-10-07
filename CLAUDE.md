@@ -47,7 +47,8 @@ Then give copy-paste PowerShell blocks: `cd C:\paul\ai_tool_no-name-yet`, `git a
 ## Testing and measuring
 
 - `npm test` (Vitest) must pass with no internet and Ollama stopped. Loopback servers on 127.0.0.1 are fine (the hook server test uses one). Anything that needs a live model belongs in `evals/`, not `tests/`.
-- Keep decisions in pure functions in `src/shared/` (`reduceSessions`, `deriveIslandView`) so they are tested without Electron.
+- Keep decisions in pure functions in `src/shared/` (`reduceSessions`, `deriveIslandView`, `buildTurnFacts`, `buildDigestFacts`) so they are tested without Electron.
+- History tests use real SQLite (`node:sqlite`, ADR-020) in memory or in temp folders. Tests need Node 22.13+.
 - Never assert an eval score in a unit test.
 - Hook payload shapes come from real captured payloads (`tests/fixtures/hooks/`), not from docs summaries. The summaries were wrong twice in Phase 0 (`tool_response`, `reason`).
 - Don't claim something works unless it was run. If only part works, say which part.
@@ -64,9 +65,11 @@ Then give copy-paste PowerShell blocks: `cd C:\paul\ai_tool_no-name-yet`, `git a
 ## Dev switches
 
 - `SURI_ALLOW_CAPTURE=1` turns off "hide from screen sharing" for that run (screenshots, demo recordings).
-- `SURI_DEVTOOLS=1` opens DevTools for the island in a separate window (the island itself can never take focus), and for Settings.
+- `SURI_DEVTOOLS=1` opens DevTools for the island in a separate window (the island itself can never take focus), and for Settings and History.
 - `CLAUDE_CONFIG_DIR=<folder>` makes the installer edit `<folder>/settings.json` instead of `~/.claude/settings.json` (Claude Code reads the same variable). Use a scratch folder for tests.
-- `--settings` opens the Settings window at launch, or in the running Suri on a second launch.
+- `SURI_DATA_DIR=<folder>` runs Suri with its own settings, secrets and history in `<folder>` (and its own single-instance lock) instead of `%APPDATA%\Suri`. Give its `settings.json` another port. End-to-end runs use it so Paul's history stays clean; `npm run replay` honours it too.
+- `--settings` opens the Settings window at launch, or in the running Suri on a second launch. `--history` does the same for History.
+- Replays are marked and stay out of History; `npm run replay -- <scenario> --record` saves them and writes recaps.
 
 ## Documentation duties
 
@@ -89,8 +92,9 @@ npm run lint
 npm run build          # typecheck + production bundle + preload check
 npm run build:win      # Windows installer (NSIS, per-user)
 npm run sandbox:hooks  # point sandbox/ at the running Suri (reads %APPDATA%\Suri\settings.json)
-npm run replay -- session|permission|risky|explain|error|multi|end [--hold ms]   # feed real captured payloads to Suri
+npm run replay -- session|permission|risky|explain|error|multi|workday|end [--hold ms] [--record]   # feed real captured payloads to Suri
 npm run eval:risk      # risk eval on live models (evals/README.md); never part of npm test
+npm run eval:recap     # recap eval on live models (evals/README.md); never part of npm test
 python scripts/mascot/build_mascot.py   # sprites and icons from assets/mascot/source (needs rembg; see its README)
 npm run spike:hooks -- --decision none|allow|deny|ask   # Phase 0 hook logger
 ```

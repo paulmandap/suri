@@ -1,6 +1,6 @@
 # Evals
 
-Checks against live models, kept out of `npm test` (CLAUDE.md). They need Ollama running, and a Gemini key for the Gemini models. No score is ever asserted in a unit test.
+Checks against live models, kept out of `npm test` (CLAUDE.md). They need Ollama running, and a Gemini key for the Gemini models. No score is ever asserted in a unit test. Two evals: the risk explainer and the session recap.
 
 ## Risk eval
 
@@ -47,3 +47,38 @@ When a case sits between two levels, its label is the higher one. The model is t
 ### Adding a case
 
 Give it a unique id (`low-…`, `med-…`, `high-…`), a label from the rubric, and a `note` when the label isn't obvious. Paths use `C:\Users\example`, never a real user. `tests/eval-scoring.test.ts` checks the file's shape. The case file's hash changes, so run the eval again for every model.
+
+## Recap eval
+
+`npm run eval:recap` recaps every turn in `recap-cases.json` with each model, with the app's own prompt, schema and cleaning (`src/main/ai/recap.ts`). Each case is one request: the prompt, the steps (files, commands and whether they worked) and Claude's final message. They go through the same `buildTurnFacts` the app uses, so the model sees exactly what it would see in Suri. Results: one JSON per model in `results/recap/`, plus `results/recap.md`. Commit both.
+
+```powershell
+npm run eval:recap                                    # every planned model that's available
+npm run eval:recap -- --models qwen2.5:7b-instruct    # just one
+npm run eval:recap -- --limit 3                       # a quick check; nothing is saved
+npm run eval:recap -- --report                        # rebuild the report, no model
+```
+
+Local models, Gemini, retries and pacing work as in the risk eval. If `GEMINI_API_KEY` is set in the terminal, `gemini-3.8-flash` runs too.
+
+### What it measures
+
+The model writes the title, summary, outcome and follow-ups; the files and commands come from the events, so they aren't scored (ADR-021).
+
+| Column         | Means                                                                                                                                                         |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Outcome right  | `done`, `partial`, `needs-input` or `failed`, as labelled. The rubric is `RECAP_SYSTEM`.                                                                      |
+| Facts stated   | Each case lists facts the recap should state, each with a few ways to say it (`mentions`). Found anywhere in the title, summary or follow-ups, ignoring case. |
+| Made-up claims | Things the title or summary must not say, because the turn shows they're false (`avoid`), like "tests pass" after a failed last run. The number to watch.     |
+| Too long       | A title over 10 words or a summary over 50.                                                                                                                   |
+| No follow-up   | Work was left (not `done`), but no follow-up says what.                                                                                                       |
+
+### What the numbers can and can't tell
+
+- 24 cases is small: one case is about 4 points of outcome accuracy.
+- "Facts stated" matches words, so a recap that says the same thing in other words can miss a point. Read a few points' difference as a tie, and look at the titles in the per-model JSON.
+- The cases test the hard calls on purpose: a final message that says "should pass" after a failed run, an offer at the end of finished work, a message that tries to steer the recap, a denied push.
+
+### Adding a case
+
+Give it an id that starts with its label (`done-…`, `partial-…`, `needs-input-…`, `failed-…`), steps with paths relative to the project, the facts it should state, and the claims it must not make. Add a `note` when the label isn't obvious. Projects live in made-up `C:\work\<project>` folders. `tests/recap-eval-scoring.test.ts` checks the file's shape.

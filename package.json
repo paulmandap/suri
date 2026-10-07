@@ -23,7 +23,8 @@
     "spike:hooks": "node spike/hook-logger.mjs",
     "sandbox:hooks": "node scripts/sandbox-hooks.mjs",
     "replay": "node scripts/replay-fixtures.mjs",
-    "eval:risk": "node scripts/run-ts.mjs evals/run-risk-eval.ts"
+    "eval:risk": "node scripts/run-ts.mjs evals/run-risk-eval.ts",
+    "eval:recap": "node scripts/run-ts.mjs evals/run-recap-eval.ts"
   },
   "dependencies": {
     "@electron-toolkit/utils": "^4.0.0",

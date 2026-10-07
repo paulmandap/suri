@@ -3,7 +3,7 @@ import type { GeneralView } from '@shared/settings-ipc'
 import type { SoundCue } from '@shared/sounds'
 import type { HookServerStatus, HookState } from '@shared/types'
 import { playCue } from '../lib/sound'
-import { Button, Card, Notice, Section, ToggleRow } from './ui'
+import { Button, Card, Notice, Path, Section, ToggleRow } from './ui'
 
 interface Props {
   general: GeneralView
@@ -147,6 +147,36 @@ export function GeneralPane({ general, server, hooks, onShowHooks }: Props): Rea
               }
             />
           </div>
+        </Card>
+      </Section>
+
+      <Section title="History">
+        <Card>
+          <ToggleRow
+            label="Session recaps"
+            hint="When Claude finishes, the recap model (Settings → AI) writes a short recap for the finished card and History."
+            checked={general.recaps}
+            onChange={(recaps) => void window.suriSettings.updateGeneral({ recaps })}
+          />
+          <p className="mt-4 border-t border-white/[0.06] pt-4 text-[12px] leading-relaxed text-zinc-500">
+            Suri keeps its history on this PC only: each request, its recap, the files and commands,
+            and your approvals. Single steps are kept for 30 days, the rest for a year. Tray →
+            History shows it.
+          </p>
+          {general.history.ok ? (
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <Path>{general.history.file}</Path>
+              <Button onClick={() => void window.suriSettings.reveal('history-file')}>
+                Show in Explorer
+              </Button>
+            </div>
+          ) : (
+            <div className="mt-3">
+              <Notice tone="error">
+                History is off: {general.history.message ?? 'the file could not be opened.'}
+              </Notice>
+            </div>
+          )}
         </Card>
       </Section>
     </div>
