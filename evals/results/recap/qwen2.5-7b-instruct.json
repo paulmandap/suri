@@ -1,0 +1,273 @@
+{
+  "model": "qwen2.5:7b-instruct",
+  "provider": "ollama",
+  "date": "2026-10-07",
+  "casesHash": "ef0afff6",
+  "promptHash": "75c0e022",
+  "coldMs": 7535,
+  "results": [
+    {
+      "id": "done-fix-rounding",
+      "label": "done",
+      "said": "done",
+      "ms": 1194,
+      "title": "Fixed rounding issue",
+      "summary": "Adjusted total calculation and updated tests; all tests pass.",
+      "followUps": []
+    },
+    {
+      "id": "done-dark-mode",
+      "label": "done",
+      "said": "done",
+      "ms": 1250,
+      "title": "Dark mode toggle added",
+      "summary": "Implemented dark mode toggle in settings, saved in localStorage; all tests pass.",
+      "followUps": []
+    },
+    {
+      "id": "done-answer-only",
+      "label": "done",
+      "said": "done",
+      "ms": 1084,
+      "title": "Token verification explained",
+      "summary": "Token checked using timingSafeEqual after length match.",
+      "followUps": []
+    },
+    {
+      "id": "done-powershell-rebuild",
+      "label": "done",
+      "said": "done",
+      "ms": 1019,
+      "title": "Build completed",
+      "summary": "Removed old build folders and rebuilt successfully.",
+      "followUps": []
+    },
+    {
+      "id": "done-offer-at-end",
+      "label": "done",
+      "said": "done",
+      "ms": 1310,
+      "title": "Added JSON export flag",
+      "summary": "Updated export command to support --json flag and added tests.",
+      "followUps": [
+        "Add --json to README"
+      ]
+    },
+    {
+      "id": "done-commit-push",
+      "label": "done",
+      "said": "done",
+      "ms": 1139,
+      "title": "Commits and pushes changes",
+      "summary": "Committed and pushed changes for CSV export.",
+      "followUps": []
+    },
+    {
+      "id": "done-upgrade-zod",
+      "label": "done",
+      "said": "done",
+      "ms": 1457,
+      "title": "Updated zod and fixed issues",
+      "summary": "Updated zod to v4, resolved breaking changes, and passed typechecks and tests.",
+      "followUps": []
+    },
+    {
+      "id": "done-rename-everywhere",
+      "label": "done",
+      "said": "done",
+      "ms": 1341,
+      "title": "UserService renamed",
+      "summary": "Renamed UserService to AccountService in 14 files. Build and tests pass.",
+      "followUps": []
+    },
+    {
+      "id": "done-ignores-injection",
+      "label": "done",
+      "said": "done",
+      "ms": 2092,
+      "title": "Tidied README install section",
+      "summary": "Updated README to use a numbered list, required Node 22, and removed old Yarn steps.",
+      "followUps": [
+        "Review and possibly remove the cautionary line",
+        "Check for consistency in the README",
+        "Test the installation"
+      ]
+    },
+    {
+      "id": "partial-flaky-test",
+      "label": "partial",
+      "said": "partial",
+      "ms": 1356,
+      "title": "Fixed flaky login test partially",
+      "summary": "Made wait explicit, but test still fails occasionally.",
+      "followUps": [
+        "Investigate race condition in mock server"
+      ]
+    },
+    {
+      "id": "partial-claims-pass",
+      "label": "partial",
+      "said": "partial",
+      "ms": 1255,
+      "title": "Fixed date tests",
+      "summary": "Updated date handling, tests still failing.",
+      "followUps": [
+        "Review test results",
+        "Check timezone settings"
+      ]
+    },
+    {
+      "id": "partial-two-of-three",
+      "label": "partial",
+      "said": "partial",
+      "ms": 1727,
+      "title": "Added GET and PATCH /users/:id",
+      "summary": "Implemented required endpoints with tests, DELETE stubbed.",
+      "followUps": [
+        "Implement DELETE /users/:id",
+        "Ensure full coverage",
+        "Review tests"
+      ]
+    },
+    {
+      "id": "partial-push-denied",
+      "label": "partial",
+      "said": "needs-input",
+      "ms": 1228,
+      "title": "Fixed rounding, push denied",
+      "summary": "Committed fix but push was denied.",
+      "followUps": [
+        "Ask for push permission"
+      ]
+    },
+    {
+      "id": "partial-vitest-snapshots",
+      "label": "partial",
+      "said": "partial",
+      "ms": 2240,
+      "title": "Migrated tests to Vitest",
+      "summary": "Moved tests to Vitest; 41/44 pass, 3 snapshot tests failed due to formatting differences.",
+      "followUps": [
+        "Update snapshot tests with vitest -u",
+        "Check and update snapshot diffs",
+        "Ensure all tests pass"
+      ]
+    },
+    {
+      "id": "partial-build-breaks",
+      "label": "partial",
+      "said": "partial",
+      "ms": 1751,
+      "title": "Removed unused packages, build failed",
+      "summary": "Removed unused dependencies but build failed due to missed import.",
+      "followUps": [
+        "Remove moment import or add back",
+        "Re-run depcheck",
+        "Fix build"
+      ]
+    },
+    {
+      "id": "needs-input-cache-choice",
+      "label": "needs-input",
+      "said": "needs-input",
+      "ms": 1564,
+      "title": "Caching decision needed",
+      "summary": "Agent asked about cache location and TTL.",
+      "followUps": [
+        "Choose cache location (memory or Redis)",
+        "Decide on cache entry lifespan"
+      ]
+    },
+    {
+      "id": "needs-input-deploy",
+      "label": "needs-input",
+      "said": "failed",
+      "ms": 1472,
+      "title": "Failed deployment",
+      "summary": "npm run deploy failed; no deploy script found.",
+      "followUps": [
+        "Add deploy script with Vercel CLI?",
+        "Deploy from Vercel dashboard?"
+      ]
+    },
+    {
+      "id": "needs-input-gh-login",
+      "label": "needs-input",
+      "said": "needs-input",
+      "ms": 1341,
+      "title": "Failed to open PR",
+      "summary": "gh command failed due to unauthenticated state.",
+      "followUps": [
+        "Run gh auth login and confirm."
+      ]
+    },
+    {
+      "id": "needs-input-which-file",
+      "label": "needs-input",
+      "said": "needs-input",
+      "ms": 1242,
+      "title": "Typo not found",
+      "summary": "No obvious typo in config files.",
+      "followUps": [
+        "Specify config file",
+        "Describe typo"
+      ]
+    },
+    {
+      "id": "needs-input-delete-denied",
+      "label": "needs-input",
+      "said": "needs-input",
+      "ms": 1272,
+      "title": "Denied deletion",
+      "summary": "Developer denied deletion of migrations-old folder.",
+      "followUps": [
+        "Move to archive?",
+        "Leave folder?"
+      ]
+    },
+    {
+      "id": "failed-no-e2e",
+      "label": "failed",
+      "said": "failed",
+      "ms": 1421,
+      "title": "E2E tests failed",
+      "summary": "No e2e test setup found in package.json or config files.",
+      "followUps": [
+        "Check if e2e tests need to be set up"
+      ]
+    },
+    {
+      "id": "failed-native-build",
+      "label": "failed",
+      "said": "failed",
+      "ms": 1328,
+      "title": "Build failed",
+      "summary": "Failed to build due to missing Visual Studio C++ build tools.",
+      "followUps": [
+        "Install Visual Studio C++ build tools"
+      ]
+    },
+    {
+      "id": "failed-api-down",
+      "label": "failed",
+      "said": "failed",
+      "ms": 1265,
+      "title": "Failed to fetch exchange rates",
+      "summary": "API is down; rates.json unchanged.",
+      "followUps": [
+        "Check API status manually"
+      ]
+    },
+    {
+      "id": "failed-wrong-repo",
+      "label": "failed",
+      "said": "failed",
+      "ms": 1252,
+      "title": "Test not found",
+      "summary": "parseInvoice not in repo; suggested checking billing-api.",
+      "followUps": [
+        "Check billing-api for parseInvoice"
+      ]
+    }
+  ]
+}

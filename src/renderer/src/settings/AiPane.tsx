@@ -267,8 +267,8 @@ function RoutesSection({
 }): React.JSX.Element {
   const setRoute = (feature: Feature, route: Route): void =>
     void window.suriSettings.updateAi({ route: { feature, ...route } })
-  // Back to Ollama: the feature's own local default (the risk explainer's is
-  // smaller, ADR-017), or the fallback model for features that default to Gemini.
+  // Back to Ollama: the feature's own local default, or the fallback model for
+  // features that default to Gemini.
   const localModel = (feature: Feature): string => {
     const preset = DEFAULT_AI.routes[feature]
     return preset.provider === 'ollama' ? preset.model : ai.settings.fallbackModel

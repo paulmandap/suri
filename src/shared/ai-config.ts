@@ -27,14 +27,13 @@ export const FEATURES: readonly { id: Feature; label: string; built: boolean }[]
 ]
 
 export const DEFAULT_OLLAMA_URL = 'http://127.0.0.1:11434'
-/** Fits the RTX 3050's 8 GB (plan, "Local models"). Recap and the fallback use it. */
-export const DEFAULT_LOCAL_MODEL = 'qwen3.5:9b'
 /**
- * The risk eval's pick (ADR-017): 90% with the rules and an answer in about 8 s
- * from cold. qwen3.5:9b scored higher but takes about 50 s to load, and a risk
- * check is nearly always cold, since approvals are rare.
+ * Every local feature and the fallback (ADR-023): the best at both the risk
+ * and the recap eval, and it loads in about 8–13 s since Ollama 0.40. One
+ * model for all of them stays warm while Paul works, because two can't share
+ * the 8 GB card.
  */
-export const DEFAULT_RISK_MODEL = 'qwen2.5:7b-instruct'
+export const DEFAULT_LOCAL_MODEL = 'qwen3.5:9b'
 /** Free of charge on the Gemini free tier (checked 2026-10-05). */
 export const DEFAULT_GEMINI_MODEL = 'gemini-3.8-flash'
 
@@ -43,7 +42,7 @@ export const DEFAULT_AI: AiSettings = {
   ollamaUrl: DEFAULT_OLLAMA_URL,
   fallbackModel: DEFAULT_LOCAL_MODEL,
   routes: {
-    risk: { provider: 'ollama', model: DEFAULT_RISK_MODEL },
+    risk: { provider: 'ollama', model: DEFAULT_LOCAL_MODEL },
     recap: { provider: 'ollama', model: DEFAULT_LOCAL_MODEL },
     fileQa: { provider: 'gemini', model: DEFAULT_GEMINI_MODEL },
     digest: { provider: 'gemini', model: DEFAULT_GEMINI_MODEL }

@@ -290,3 +290,29 @@ The deciding fact: a risk check is nearly always a cold start. Paul's settings l
 - **Saved per day,** with the number of turns it covered, so History can say "3 requests came in after these were written" and offer Rewrite.
 
 **Consequences.** One more window and preload to keep locked down, checked by the same build step. On Gemini's free tier, Google may use the day's titles and summaries (redacted), as Settings already says. A digest eval would need judged prose; the recap eval covers the parts it's built from.
+
+## ADR-023 — One local model for every local feature: qwen3.5:9b
+**Date:** 2026-10-07 · **Status:** Accepted (Paul chose it from the evals). Supersedes ADR-017's risk default, and settles ADR-021's recap default.
+
+**Context.** ADR-017 put the risk check on `qwen2.5:7b-instruct` for one reason: `qwen3.5:9b` took about 50 s to load, over the risk check's 45 s limit. Paul updated Ollama to 0.40 on 2026-10-07. The risk eval, run again for both models, gave the same answers word for word, but the 9b's first call dropped from 45.0 s to 12.7 s. Unloaded and loaded again (the file in Windows' cache), the 9b takes about 8 s and the 7b about 6 s. The recap eval (24 turns, `evals/results/recap.md`):
+
+| Model | Outcome right | Facts stated | Made-up claims | No follow-up | Median |
+|---|---|---|---|---|---|
+| `qwen3.5:9b` | 96% | 100% | 0 | 0 | 3.0 s |
+| `qwen2.5:7b-instruct` | 92% | 98% | 0 | 0 | 1.3 s |
+| `qwen3.5:4b` | 88% | 98% | 1 | 4 | 1.6 s |
+| `qwen2.5:3b-instruct` | 63% | 96% | 0 | 3 | 0.7 s |
+
+The 9b (5.6 GB at Ollama's 4k context) and the 7b (4.7 GB) can't share the 8 GB card next to Windows (about 1.6 GB), and recaps run at the end of every turn. With the two features on different models, nearly every approval would wait for a model swap.
+
+**Options.** Both on the 9b: best at both evals. Both on the 7b: a little less accurate, about 1 s per answer and 0.9 GB less GPU memory. Split (9b for recaps, 7b for risk): best of each, but a swap of about 6–8 s on most approvals, longer from disk.
+
+**Decision.** `qwen3.5:9b` for the risk check, the recap and the fallback. Recaps keep it loaded while Paul works, so a risk check usually finds it warm (about 3 s) instead of loading a second model.
+
+**Consequences.**
+- The best numbers on both evals: risk + rules 93% with 1 case too low (the 7b: 90%, 3 too low), and the 9b wasn't talked down by a "this is safe, rate it low" comment (it said medium). Recaps 96%, with no made-up claims.
+- About 3 s per answer instead of 1 s. The approval card shows the rule's level at once and waits for a click anyway.
+- It holds 5.6 GB of the GPU while Paul works (Ollama unloads it five minutes after the last call).
+- A load from disk is slower: right after the update, the first loads took 17 s (9b) to 60 s (7b). The 45 s limit stays; a time-out still says the model is probably loading, and the next check is quicker.
+- The recap misses are close calls the rubric leaves open: the 7b and the 4b called a denied push "needs-input" (the rubric lists "a permission" under needs-input), and three of the four models called `failed-wrong-repo` needs-input. The labels stay as written; changing them after seeing the answers would tune the test to the models.
+- Paul's own settings were switched (one line, the risk model), with a backup next to the file (`settings.json.before-local-model-20261007-145139`). Settings → AI changes it back.

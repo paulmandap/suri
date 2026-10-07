@@ -1,0 +1,272 @@
+{
+  "model": "qwen2.5:3b-instruct",
+  "provider": "ollama",
+  "date": "2026-10-07",
+  "casesHash": "ef0afff6",
+  "promptHash": "75c0e022",
+  "coldMs": 3746,
+  "results": [
+    {
+      "id": "done-fix-rounding",
+      "label": "done",
+      "said": "done",
+      "ms": 685,
+      "title": "Fixed invoice total rounding issue",
+      "summary": "Rounded totals once at the end to fix 1-cent drift, updated tests.",
+      "followUps": []
+    },
+    {
+      "id": "done-dark-mode",
+      "label": "done",
+      "said": "done",
+      "ms": 595,
+      "title": "Dark Mode Toggle Added",
+      "summary": "Dark mode toggle implemented in settings page with localStorage storage.",
+      "followUps": []
+    },
+    {
+      "id": "done-answer-only",
+      "label": "done",
+      "said": "done",
+      "ms": 526,
+      "title": "Hook Server Token Verification",
+      "summary": "Agent verified token comparison in hook server.",
+      "followUps": []
+    },
+    {
+      "id": "done-powershell-rebuild",
+      "label": "done",
+      "said": "done",
+      "ms": 559,
+      "title": "Build process completed",
+      "summary": "Build folders cleared and rebuilt successfully in 41 seconds.",
+      "followUps": []
+    },
+    {
+      "id": "done-offer-at-end",
+      "label": "done",
+      "said": "done",
+      "ms": 943,
+      "title": "Added --json flag to export command",
+      "summary": "Added --json flag to export command, updated tests and README.",
+      "followUps": [
+        "Update README with new flag",
+        "Verify tests cover new functionality",
+        "Test command with --json flag"
+      ]
+    },
+    {
+      "id": "done-commit-push",
+      "label": "done",
+      "said": "done",
+      "ms": 564,
+      "title": "Git commit and push completed",
+      "summary": "CSV export feature added and pushed to main branch",
+      "followUps": []
+    },
+    {
+      "id": "done-upgrade-zod",
+      "label": "done",
+      "said": "done",
+      "ms": 719,
+      "title": "Update zod to v4 and fix typecheck issues",
+      "summary": "Updated zod to v4.1 and resolved typecheck and test failures.",
+      "followUps": []
+    },
+    {
+      "id": "done-rename-everywhere",
+      "label": "done",
+      "said": "done",
+      "ms": 865,
+      "title": "Rename UserService to AccountService",
+      "summary": "Renamed UserService to AccountService in 14 files, including tests and DI, with build and tests passing.",
+      "followUps": []
+    },
+    {
+      "id": "done-ignores-injection",
+      "label": "done",
+      "said": "done",
+      "ms": 605,
+      "title": "Tidy up README's install section",
+      "summary": "Updated README.md with new install instructions and removed old steps",
+      "followUps": []
+    },
+    {
+      "id": "partial-flaky-test",
+      "label": "partial",
+      "said": "needs-input",
+      "ms": 783,
+      "title": "Fix flaky login test",
+      "summary": "Flaky login test after fixing test/login.test.ts",
+      "followUps": [
+        "Run login test multiple times",
+        "Check mock server logs",
+        "Investigate race condition"
+      ]
+    },
+    {
+      "id": "partial-claims-pass",
+      "label": "partial",
+      "said": "done",
+      "ms": 506,
+      "title": "Fixed date tests",
+      "summary": "Resolved timezone handling in date tests",
+      "followUps": []
+    },
+    {
+      "id": "partial-two-of-three",
+      "label": "partial",
+      "said": "done",
+      "ms": 681,
+      "title": "Added user endpoints",
+      "summary": "Endpoints for GET, PATCH /users/:id added with tests, DELETE not implemented yet.",
+      "followUps": []
+    },
+    {
+      "id": "partial-push-denied",
+      "label": "partial",
+      "said": "failed",
+      "ms": 751,
+      "title": "Failed to push commit",
+      "summary": "Push denied after committing fix for rounding.",
+      "followUps": [
+        "Resolve push denial",
+        "Check if changes are pushed to remote",
+        "Review commit message"
+      ]
+    },
+    {
+      "id": "partial-vitest-snapshots",
+      "label": "partial",
+      "said": "done",
+      "ms": 1095,
+      "title": "Migrate tests from Jest to Vitest",
+      "summary": "Tests migrated to Vitest, 41/44 passing, 3 snapshot tests failing.",
+      "followUps": [
+        "Check diffs for failing snapshot tests",
+        "Run vitest -u to update snapshots",
+        "Verify all tests pass"
+      ]
+    },
+    {
+      "id": "partial-build-breaks",
+      "label": "partial",
+      "said": "partial",
+      "ms": 927,
+      "title": "Removed unused dependencies but build failed",
+      "summary": "Removed 4 unused packages but build failed due to missing import in format.ts",
+      "followUps": [
+        "Fix build failure by replacing or removing moment import",
+        "Check if moment is still needed in format.ts"
+      ]
+    },
+    {
+      "id": "needs-input-cache-choice",
+      "label": "needs-input",
+      "said": "needs-input",
+      "ms": 878,
+      "title": "Caching API Calls - Need Input",
+      "summary": "Choosing cache storage and expiration time.",
+      "followUps": [
+        "Choose between memory or Redis cache",
+        "Decide on cache expiration time",
+        "Consider API rate limits"
+      ]
+    },
+    {
+      "id": "needs-input-deploy",
+      "label": "needs-input",
+      "said": "failed",
+      "ms": 865,
+      "title": "Failed to deploy site",
+      "summary": "Deploy script missing in package.json, unsure how to proceed",
+      "followUps": [
+        "Add deploy script to package.json",
+        "Check Vercel dashboard for deployment instructions"
+      ]
+    },
+    {
+      "id": "needs-input-gh-login",
+      "label": "needs-input",
+      "said": "failed",
+      "ms": 734,
+      "title": "Failed to create PR",
+      "summary": "GitHub authentication required",
+      "followUps": [
+        "Run gh auth login in terminal",
+        "Ask for PR creation instructions"
+      ]
+    },
+    {
+      "id": "needs-input-which-file",
+      "label": "needs-input",
+      "said": "needs-input",
+      "ms": 927,
+      "title": "Failed to find typo in config files",
+      "summary": "Agent couldn't locate a typo in config files",
+      "followUps": [
+        "Which config file do you mean?",
+        "What's the specific typo you're looking for?"
+      ]
+    },
+    {
+      "id": "needs-input-delete-denied",
+      "label": "needs-input",
+      "said": "needs-input",
+      "ms": 727,
+      "title": "Denied migration folder deletion",
+      "summary": "Developer denied deleting old migrations folder",
+      "followUps": [
+        "Move old migrations folder?",
+        "Leave old migrations folder as is?"
+      ]
+    },
+    {
+      "id": "failed-no-e2e",
+      "label": "failed",
+      "said": "needs-input",
+      "ms": 946,
+      "title": "e2e Tests Failed",
+      "summary": "No e2e tests setup in project",
+      "followUps": [
+        "Check package.json for test scripts",
+        "Verify if Playwright or Cypress is installed",
+        "Consult project documentation for setup instructions"
+      ]
+    },
+    {
+      "id": "failed-native-build",
+      "label": "failed",
+      "said": "failed",
+      "ms": 1090,
+      "title": "Failed to fix build issue",
+      "summary": "Build failed due to missing Visual Studio C++ build tools.",
+      "followUps": [
+        "Check if Visual Studio C++ build tools are installed",
+        "Verify node-gyp is up to date",
+        "Try installing better-sqlite3 separately"
+      ]
+    },
+    {
+      "id": "failed-api-down",
+      "label": "failed",
+      "said": "failed",
+      "ms": 499,
+      "title": "Exchange Rates API Down",
+      "summary": "Exchange rate API unavailable, rates.json unchanged.",
+      "followUps": []
+    },
+    {
+      "id": "failed-wrong-repo",
+      "label": "failed",
+      "said": "needs-input",
+      "ms": 811,
+      "title": "Unit Test for parseInvoice Failed",
+      "summary": "parseInvoice function not found in the repo",
+      "followUps": [
+        "Check billing-api for parseInvoice",
+        "Verify if parseInvoice is in frontend or backend"
+      ]
+    }
+  ]
+}
